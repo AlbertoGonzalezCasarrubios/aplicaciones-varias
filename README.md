@@ -7,5 +7,5 @@ Espero que le sea útil a alguien.
 
 ## Aplicaciones Disponibles:
 
-* **Simulador de Átomos:** https://albertogonzalezcasarrubios.github.io/aplicaciones-varias/simulador-atomos
+* **Simulador de Átomos:** https://albertogonzalezcasarrubios.github.io/aplicaciones-varias/visualizador-atomos
 * **Campanadas R/V SONNE:** https://albertogonzalezcasarrubios.github.io/aplicaciones-varias/nochevieja-SONNE
