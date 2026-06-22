@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Visualizador Atómico</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#020617;font-family:system-ui,-apple-system,sans-serif;color:#f1f5f9}
+#app{display:flex;height:100vh;overflow:hidden}
+
+/* SIDEBAR */
+#sidebar{width:280px;flex-shrink:0;background:#0f172a;border-right:1px solid #1e293b;display:flex;flex-direction:column;overflow:hidden}
+#sidebar-header{padding:16px;border-bottom:1px solid #1e293b;display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700}
+#sidebar-header svg{flex-shrink:0}
+#sidebar-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:16px}
+#sidebar-body::-webkit-scrollbar{width:3px}
+#sidebar-body::-webkit-scrollbar-thumb{background:#334155;border-radius:2px}
+
+.card{background:rgba(30,41,59,0.6);border:1px solid #1e293b;border-radius:8px;padding:12px}
+.section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;display:flex;align-items:center;gap:6px;margin-bottom:12px}
+
+select{width:100%;background:#0f172a;border:1px solid #334155;border-radius:7px;padding:8px 32px 8px 10px;font-size:13px;color:#f1f5f9;appearance:none;-webkit-appearance:none;cursor:pointer;outline:none}
+select:focus{border-color:#3b82f6}
+.select-wrap{position:relative}
+.select-wrap::after{content:'▾';position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#64748b;font-size:12px}
+
+.row-label{font-size:11px;color:#64748b;display:flex;justify-content:space-between;margin-bottom:6px}
+.counter{display:flex;align-items:center;justify-content:space-between;background:#0f172a;border:1px solid #334155;border-radius:7px;padding:4px}
+.counter-val{font-family:monospace;font-weight:700;font-size:16px;color:#e2e8f0;width:44px;text-align:center}
+.ctr-btn{width:28px;height:28px;border:none;background:transparent;color:#94a3b8;cursor:pointer;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1}
+.ctr-btn:hover{background:rgba(255,255,255,0.07)}
+
+.stab{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.stab-green{color:#4ade80}.stab-yellow{color:#facc15}.stab-red{color:#f87171}
+
+.model-tabs{display:flex;border:1px solid #334155;border-radius:7px;overflow:hidden;margin-bottom:10px}
+.tab-btn{flex:1;padding:7px 4px;font-size:11px;font-weight:500;border:none;cursor:pointer;transition:background .15s,color .15s;background:#1e293b;color:#64748b}
+.tab-btn:hover{background:#334155;color:#cbd5e1}
+.tab-btn.active-q{background:#7c3aed;color:#fff}
+.tab-btn.active-b{background:#d97706;color:#fff}
+
+.ctrl-row{display:flex;gap:8px;margin-bottom:12px}
+.toggle-btn{flex:1;display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#1e293b;border:1px solid #334155;border-radius:7px;color:#cbd5e1;font-size:12px;cursor:pointer}
+.toggle-btn:hover{background:#334155}
+.pause-btn{width:36px;background:#1e293b;border:1px solid #334155;border-radius:7px;cursor:pointer;color:#cbd5e1;display:flex;align-items:center;justify-content:center}
+.pause-btn:hover{background:#334155}
+.pause-btn.active{background:#d97706;border-color:#d97706;color:#fff}
+
+input[type=range]{width:100%;height:5px;-webkit-appearance:none;appearance:none;background:#334155;border-radius:3px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:#94a3b8;cursor:pointer}
+
+.layer-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.layer-btn{display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border-radius:6px;border:1px solid #475569;background:transparent;color:#bfdbfe;font-size:11px;font-family:monospace;cursor:pointer;transition:opacity .15s}
+.layer-btn.off{border-color:transparent;color:#475569;opacity:.4}
+.layer-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* MAIN */
+#main{flex:1;position:relative;overflow:hidden}
+#canvas-container{width:100%;height:100%}
+
+.overlay{position:absolute;pointer-events:none;z-index:30}
+#info-overlay{top:14px;left:14px;background:rgba(15,23,42,.85);backdrop-filter:blur(8px);padding:12px 16px;border-radius:10px;border:1px solid #1e293b}
+#info-name{font-size:24px;font-weight:700;color:#f8fafc;display:flex;align-items:baseline;gap:8px}
+#info-sym{font-size:15px;color:#64748b;font-family:monospace}
+#info-family{font-size:11px;font-weight:700;color:#60a5fa;text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
+#info-nums{font-size:11px;color:#64748b;font-family:monospace;margin-top:6px}
+#legend{bottom:14px;left:14px;background:rgba(15,23,42,.85);backdrop-filter:blur(8px);padding:8px 12px;border-radius:10px;border:1px solid #1e293b;display:grid;grid-template-columns:1fr 1fr;gap:5px 14px;font-size:10px;color:#94a3b8}
+.leg-row{display:flex;align-items:center;gap:6px}
+.leg-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+#help-btn{position:absolute;top:14px;right:14px;width:36px;height:36px;background:rgba(30,41,59,.85);backdrop-filter:blur(8px);border:1px solid #334155;border-radius:50%;cursor:pointer;color:#64748b;display:flex;align-items:center;justify-content:center;z-index:40;transition:color .15s}
+#help-btn:hover{color:#f1f5f9}
+
+/* MODAL */
+#modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:100;align-items:center;justify-content:center;padding:20px}
+#modal-bg.open{display:flex}
+#modal{background:#0f172a;border:1px solid #1e293b;border-radius:14px;width:100%;max-width:600px;max-height:85vh;overflow-y:auto;padding:28px}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.modal-title{font-size:18px;font-weight:600;color:#f1f5f9;display:flex;align-items:center;gap:10px}
+.close-btn{width:30px;height:30px;background:transparent;border:none;color:#64748b;cursor:pointer;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.close-btn:hover{background:rgba(255,255,255,.07);color:#f1f5f9}
+.modal-card{background:rgba(30,41,59,.5);border:1px solid #1e293b;border-radius:8px;padding:14px;margin-bottom:14px;font-size:13px;color:#94a3b8;line-height:1.7}
+.modal-card h3{font-size:13px;font-weight:600;color:#f1f5f9;margin-bottom:8px}
+.modal-card b{font-weight:600}
+.modal-foot{text-align:center;font-size:11px;color:#334155;border-top:1px solid #1e293b;padding-top:14px;margin-top:4px}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div id="sidebar-header">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="1"/>
+        <path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5z"/>
+        <path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5z"/>
+      </svg>
+      Visualizador Atómico
+    </div>
+
+    <div id="sidebar-body">
+      <!-- Nucleus -->
+      <div class="card">
+        <div class="section-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18h8"/><path d="M3 21h18"/><path d="M14 21v-4"/><path d="M14 7l-5 5"/><path d="M14 12l-5-5"/><path d="M5 12l4-4"/><rect x="9" y="2" width="6" height="8" rx="1"/></svg>
+          Identidad del Núcleo
+        </div>
+        <div style="margin-bottom:12px">
+          <div class="row-label">Elemento</div>
+          <div class="select-wrap">
+            <select id="el-select"></select>
+          </div>
+        </div>
+        <div>
+          <div class="row-label"><span>Neutrones (N)</span><span id="mass-label">Masa A = 12</span></div>
+          <div class="counter">
+            <button class="ctr-btn" id="n-minus">−</button>
+            <span class="counter-val" id="n-val">6</span>
+            <button class="ctr-btn" id="n-plus">+</button>
+          </div>
+          <div class="stab" id="stab-div"></div>
+        </div>
+      </div>
+
+      <!-- Charge -->
+      <div class="card">
+        <div class="section-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Carga Eléctrica
+        </div>
+        <div class="counter">
+          <button class="ctr-btn" id="ch-minus">−</button>
+          <span class="counter-val" id="ch-val" style="font-size:20px">0</span>
+          <button class="ctr-btn" id="ch-plus">+</button>
+        </div>
+      </div>
+
+      <!-- Model & render -->
+      <div>
+        <div class="section-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Modelo y Renderizado
+        </div>
+        <div class="model-tabs">
+          <button class="tab-btn active-q" id="tab-quantum">Cuántico-Probabilístico</button>
+          <button class="tab-btn" id="tab-bohr">Bohr (Planetario)</button>
+        </div>
+        <div class="ctrl-row">
+          <button class="toggle-btn" id="toggle-electrons">
+            <span>Electrones</span>
+            <svg id="eye-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button class="pause-btn" id="pause-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          </button>
+        </div>
+        <div>
+          <div class="row-label" style="margin-bottom:6px">
+            <span style="text-transform:uppercase;font-size:10px;letter-spacing:.06em">Densidad de puntos</span>
+            <span id="density-label" style="color:#94a3b8">1500</span>
+          </div>
+          <input type="range" id="density-range" min="500" max="3000" step="100" value="1500"/>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:#475569;margin-top:3px"><span>Bajo</span><span>Alto</span></div>
+        </div>
+      </div>
+
+      <!-- Layers -->
+      <div id="layers-section">
+        <div class="section-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+          Subcapas Activas
+        </div>
+        <div class="layer-grid" id="layers-grid"></div>
+      </div>
+    </div>
+  </aside>
+
+  <main id="main">
+    <div id="canvas-container"></div>
+    <button id="help-btn">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </button>
+    <div class="overlay" id="info-overlay">
+      <div id="info-name">Carbono <span id="info-sym">(C)</span></div>
+      <div id="info-family">No Metal Reactivo</div>
+      <div id="info-nums">Z = 6 · A = 12 · 6 e⁻</div>
+    </div>
+    <div class="overlay" id="legend"></div>
+  </main>
+</div>
+
+<!-- Modal -->
+<div id="modal-bg">
+  <div id="modal">
+    <div class="modal-header">
+      <div class="modal-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Acerca del Visualizador
+      </div>
+      <button class="close-btn" id="modal-close">✕</button>
+    </div>
+    <p style="font-size:13px;color:#94a3b8;line-height:1.7;margin-bottom:16px">
+      Herramienta educativa para explorar la estructura y orbitales electrónicos de los 118 elementos, con dos modelos atómicos en 3D en tiempo real.
+    </p>
+    <div class="modal-card">
+      <h3>Modelos</h3>
+      <p><b style="color:#c084fc">Cuántico-Probabilístico:</b> Orbitales como nubes de densidad. Los puntos indican las zonas de mayor probabilidad de encontrar un electrón.</p>
+      <br/>
+      <p><b style="color:#fbbf24">Bohr (Planetario):</b> Los electrones orbitan en anillos fijos por niveles de energía (n = 1, 2, …).</p>
+    </div>
+    <div class="modal-card">
+      <h3>Controles de cámara</h3>
+      <p><b style="color:#cbd5e1">Rotar:</b> clic izquierdo + arrastrar &nbsp;·&nbsp; <b style="color:#cbd5e1">Zoom:</b> rueda del ratón &nbsp;·&nbsp; <b style="color:#cbd5e1">Mover:</b> clic derecho + arrastrar</p>
+    </div>
+    <div class="modal-card">
+      <h3>Panel lateral</h3>
+      <p><b style="color:#cbd5e1">Neutrones:</b> crea isótopos y ver indicador de estabilidad &nbsp;·&nbsp; <b style="color:#cbd5e1">Carga:</b> simula cationes (+) y aniones (−) &nbsp;·&nbsp; <b style="color:#cbd5e1">Pausa:</b> detiene la rotación para examinar el modelo</p>
+    </div>
+    <div class="modal-foot">Visualizador Atómico v1.1 · Herramienta Educativa</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─── THREE OrbitControls (inlined, r128 compatible) ──────────────────────────
+(function(){
+'use strict';
+const STATE={NONE:-1,ROTATE:0,DOLLY:1,PAN:2,TOUCH_ROTATE:3,TOUCH_PAN:4,TOUCH_DOLLY_PAN:5,TOUCH_DOLLY_ROTATE:6};
+THREE.OrbitControls=function(object,domElement){
+  this.object=object; this.domElement=domElement||document;
+  this.enabled=true; this.target=new THREE.Vector3();
+  this.minDistance=0; this.maxDistance=Infinity;
+  this.enableDamping=false; this.dampingFactor=0.05;
+  this.enableZoom=true; this.zoomSpeed=1.0;
+  this.enableRotate=true; this.rotateSpeed=1.0;
+  this.enablePan=true; this.panSpeed=1.0;
+  this.screenSpacePanning=true;
+  var scope=this;
+  var changeEvent={type:'change'}, startEvent={type:'start'}, endEvent={type:'end'};
+  var state=STATE.NONE;
+  var EPS=1e-6;
+  var spherical=new THREE.Spherical(), sphericalDelta=new THREE.Spherical();
+  var scale=1; var panOffset=new THREE.Vector3(); var zoomChanged=false;
+  var rotateStart=new THREE.Vector2(), rotateEnd=new THREE.Vector2(), rotateDelta=new THREE.Vector2();
+  var panStart=new THREE.Vector2(), panEnd=new THREE.Vector2(), panDelta=new THREE.Vector2();
+  var dollyStart=new THREE.Vector2(), dollyEnd=new THREE.Vector2(), dollyDelta=new THREE.Vector2();
+  function getAutoRotationAngle(){return 2*Math.PI/60/60*scope.autoRotateSpeed;}
+  function getZoomScale(){return Math.pow(0.95,scope.zoomSpeed);}
+  function rotateLeft(angle){sphericalDelta.theta-=angle;}
+  function rotateUp(angle){sphericalDelta.phi-=angle;}
+  var panLeft=function(){var v=new THREE.Vector3(); return function(distance,objectMatrix){v.setFromMatrixColumn(objectMatrix,0); v.multiplyScalar(-distance); panOffset.add(v);};}();
+  var panUp=function(){var v=new THREE.Vector3(); return function(distance,objectMatrix){if(scope.screenSpacePanning){v.setFromMatrixColumn(objectMatrix,1);}else{v.setFromMatrixColumn(objectMatrix,0); v.crossVectors(scope.object.up,v);} v.multiplyScalar(distance); panOffset.add(v);};}();
+  var pan=function(){var offset=new THREE.Vector3(); return function(deltaX,deltaY){var element=scope.domElement; if(scope.object.isPerspectiveCamera){var position=scope.object.position; offset.copy(position).sub(scope.target); var targetDistance=offset.length(); targetDistance*=Math.tan((scope.object.fov/2)*Math.PI/180); panLeft(2*deltaX*targetDistance/element.clientHeight,scope.object.matrix); panUp(2*deltaY*targetDistance/element.clientHeight,scope.object.matrix);}else if(scope.object.isOrthographicCamera){panLeft(deltaX*(scope.object.right-scope.object.left)/scope.object.zoom/element.clientWidth,scope.object.matrix); panUp(deltaY*(scope.object.top-scope.object.bottom)/scope.object.zoom/element.clientHeight,scope.object.matrix);}};}();
+  function dollyIn(dollyScale){if(scope.object.isPerspectiveCamera){scale/=dollyScale;}else if(scope.object.isOrthographicCamera){scope.object.zoom=Math.max(scope.minZoom,Math.min(scope.maxZoom,scope.object.zoom*dollyScale)); scope.object.updateProjectionMatrix(); zoomChanged=true;}else{console.warn('OrbitControls: unsupported camera');}}
+  function dollyOut(dollyScale){if(scope.object.isPerspectiveCamera){scale*=dollyScale;}else if(scope.object.isOrthographicCamera){scope.object.zoom=Math.max(scope.minZoom,Math.min(scope.maxZoom,scope.object.zoom/dollyScale)); scope.object.updateProjectionMatrix(); zoomChanged=true;}}
+  function handleMouseDownRotate(event){rotateStart.set(event.clientX,event.clientY);}
+  function handleMouseDownDolly(event){dollyStart.set(event.clientX,event.clientY);}
+  function handleMouseDownPan(event){panStart.set(event.clientX,event.clientY);}
+  function handleMouseMoveRotate(event){rotateEnd.set(event.clientX,event.clientY); rotateDelta.subVectors(rotateEnd,rotateStart).multiplyScalar(scope.rotateSpeed); var element=scope.domElement; rotateLeft(2*Math.PI*rotateDelta.x/element.clientHeight); rotateUp(2*Math.PI*rotateDelta.y/element.clientHeight); rotateStart.copy(rotateEnd); scope.update();}
+  function handleMouseMoveDolly(event){dollyEnd.set(event.clientX,event.clientY); dollyDelta.subVectors(dollyEnd,dollyStart); if(dollyDelta.y>0){dollyIn(getZoomScale());}else if(dollyDelta.y<0){dollyOut(getZoomScale());} dollyStart.copy(dollyEnd); scope.update();}
+  function handleMouseMovePan(event){panEnd.set(event.clientX,event.clientY); panDelta.subVectors(panEnd,panStart).multiplyScalar(scope.panSpeed); pan(panDelta.x,panDelta.y); panStart.copy(panEnd); scope.update();}
+  function handleMouseWheel(event){if(event.deltaY<0){dollyOut(getZoomScale());}else if(event.deltaY>0){dollyIn(getZoomScale());} scope.update();}
+  function handleTouchStartRotate(event){if(event.touches.length==1){rotateStart.set(event.touches[0].pageX,event.touches[0].pageY);}else{var x=.5*(event.touches[0].pageX+event.touches[1].pageX); var y=.5*(event.touches[0].pageY+event.touches[1].pageY); rotateStart.set(x,y);}}
+  function handleTouchStartPan(event){if(event.touches.length==1){panStart.set(event.touches[0].pageX,event.touches[0].pageY);}else{var x=.5*(event.touches[0].pageX+event.touches[1].pageX); var y=.5*(event.touches[0].pageY+event.touches[1].pageY); panStart.set(x,y);}}
+  function handleTouchStartDolly(event){var dx=event.touches[0].pageX-event.touches[1].pageX; var dy=event.touches[0].pageY-event.touches[1].pageY; var distance=Math.sqrt(dx*dx+dy*dy); dollyStart.set(0,distance);}
+  function handleTouchMoveRotate(event){if(event.touches.length==1){rotateEnd.set(event.touches[0].pageX,event.touches[0].pageY);}else{var x=.5*(event.touches[0].pageX+event.touches[1].pageX); var y=.5*(event.touches[0].pageY+event.touches[1].pageY); rotateEnd.set(x,y);} rotateDelta.subVectors(rotateEnd,rotateStart).multiplyScalar(scope.rotateSpeed); var element=scope.domElement; rotateLeft(2*Math.PI*rotateDelta.x/element.clientHeight); rotateUp(2*Math.PI*rotateDelta.y/element.clientHeight); rotateStart.copy(rotateEnd);}
+  function handleTouchMovePan(event){if(event.touches.length==1){panEnd.set(event.touches[0].pageX,event.touches[0].pageY);}else{var x=.5*(event.touches[0].pageX+event.touches[1].pageX); var y=.5*(event.touches[0].pageY+event.touches[1].pageY); panEnd.set(x,y);} panDelta.subVectors(panEnd,panStart).multiplyScalar(scope.panSpeed); pan(panDelta.x,panDelta.y); panStart.copy(panEnd);}
+  function handleTouchMoveDolly(event){var dx=event.touches[0].pageX-event.touches[1].pageX; var dy=event.touches[0].pageY-event.touches[1].pageY; var distance=Math.sqrt(dx*dx+dy*dy); dollyEnd.set(0,distance); dollyDelta.set(0,Math.pow(dollyEnd.y/dollyStart.y,scope.zoomSpeed)); dollyIn(dollyDelta.y); dollyStart.copy(dollyEnd);}
+  function onMouseDown(event){if(!scope.enabled) return; event.preventDefault(); switch(event.button){case 0: if(!scope.enableRotate) return; handleMouseDownRotate(event); state=STATE.ROTATE; break; case 1: if(!scope.enableZoom) return; handleMouseDownDolly(event); state=STATE.DOLLY; break; case 2: if(!scope.enablePan) return; handleMouseDownPan(event); state=STATE.PAN; break;} if(state!==STATE.NONE){document.addEventListener('mousemove',onMouseMove,false); document.addEventListener('mouseup',onMouseUp,false); scope.dispatchEvent(startEvent);}}
+  function onMouseMove(event){if(!scope.enabled) return; event.preventDefault(); switch(state){case STATE.ROTATE: if(!scope.enableRotate) return; handleMouseMoveRotate(event); break; case STATE.DOLLY: if(!scope.enableZoom) return; handleMouseMoveDolly(event); break; case STATE.PAN: if(!scope.enablePan) return; handleMouseMovePan(event); break;}}
+  function onMouseUp(){if(!scope.enabled) return; document.removeEventListener('mousemove',onMouseMove,false); document.removeEventListener('mouseup',onMouseUp,false); scope.dispatchEvent(endEvent); state=STATE.NONE;}
+  function onMouseWheel(event){if(!scope.enabled||!scope.enableZoom||(state!==STATE.NONE&&state!==STATE.ROTATE)) return; event.preventDefault(); event.stopPropagation(); scope.dispatchEvent(startEvent); handleMouseWheel(event); scope.dispatchEvent(endEvent);}
+  function onTouchStart(event){if(!scope.enabled) return; event.preventDefault(); switch(event.touches.length){case 1: if(!scope.enableRotate) return; handleTouchStartRotate(event); state=STATE.TOUCH_ROTATE; break; case 2: if(!scope.enableZoom&&!scope.enablePan) return; handleTouchStartDolly(event); handleTouchStartPan(event); state=STATE.TOUCH_DOLLY_PAN; break; default: state=STATE.NONE;}}
+  function onTouchMove(event){if(!scope.enabled) return; event.preventDefault(); event.stopPropagation(); switch(state){case STATE.TOUCH_ROTATE: if(!scope.enableRotate) return; handleTouchMoveRotate(event); scope.update(); break; case STATE.TOUCH_DOLLY_PAN: if(!scope.enableZoom&&!scope.enablePan) return; handleTouchMoveDolly(event); handleTouchMovePan(event); scope.update(); break; default: state=STATE.NONE;}}
+  function onTouchEnd(){if(!scope.enabled) return; scope.dispatchEvent(endEvent); state=STATE.NONE;}
+  function onContextMenu(event){if(!scope.enabled) return; event.preventDefault();}
+  scope.domElement.addEventListener('contextmenu',onContextMenu,false);
+  scope.domElement.addEventListener('mousedown',onMouseDown,false);
+  scope.domElement.addEventListener('wheel',onMouseWheel,{passive:false});
+  scope.domElement.addEventListener('touchstart',onTouchStart,{passive:false});
+  scope.domElement.addEventListener('touchend',onTouchEnd,false);
+  scope.domElement.addEventListener('touchmove',onTouchMove,{passive:false});
+  this.update=function(){
+    var offset=new THREE.Vector3();
+    var quat=new THREE.Quaternion().setFromUnitVectors(object.up,new THREE.Vector3(0,1,0));
+    var quatInverse=quat.clone().invert();
+    var lastPosition=new THREE.Vector3(); var lastQuaternion=new THREE.Quaternion();
+    return function update(){
+      var position=scope.object.position;
+      offset.copy(position).sub(scope.target);
+      offset.applyQuaternion(quat);
+      spherical.setFromVector3(offset);
+      if(scope.enableDamping){spherical.theta+=sphericalDelta.theta*scope.dampingFactor; spherical.phi+=sphericalDelta.phi*scope.dampingFactor;}
+      else{spherical.theta+=sphericalDelta.theta; spherical.phi+=sphericalDelta.phi;}
+      var min=scope.minPolarAngle!==undefined?scope.minPolarAngle:0;
+      var max=scope.maxPolarAngle!==undefined?scope.maxPolarAngle:Math.PI;
+      spherical.phi=Math.max(min+EPS,Math.min(max-EPS,spherical.phi));
+      spherical.makeSafe(); spherical.radius*=scale;
+      spherical.radius=Math.max(scope.minDistance,Math.min(scope.maxDistance,spherical.radius));
+      if(scope.enableDamping){scope.target.addScaledVector(panOffset,scope.dampingFactor);}else{scope.target.add(panOffset);}
+      offset.setFromSpherical(spherical); offset.applyQuaternion(quatInverse);
+      position.copy(scope.target).add(offset);
+      scope.object.lookAt(scope.target);
+      if(scope.enableDamping){sphericalDelta.theta*=(1-scope.dampingFactor); sphericalDelta.phi*=(1-scope.dampingFactor); panOffset.multiplyScalar(1-scope.dampingFactor);}
+      else{sphericalDelta.set(0,0,0); panOffset.set(0,0,0);}
+      scale=1;
+      if(zoomChanged||lastPosition.distanceToSquared(scope.object.position)>EPS||8*(1-lastQuaternion.dot(scope.object.quaternion))>EPS){scope.dispatchEvent(changeEvent); lastPosition.copy(scope.object.position); lastQuaternion.copy(scope.object.quaternion); zoomChanged=false; return true;}
+      return false;
+    };
+  }();
+  this.dispose=function(){
+    scope.domElement.removeEventListener('contextmenu',onContextMenu,false);
+    scope.domElement.removeEventListener('mousedown',onMouseDown,false);
+    scope.domElement.removeEventListener('wheel',onMouseWheel,false);
+    scope.domElement.removeEventListener('touchstart',onTouchStart,false);
+    scope.domElement.removeEventListener('touchend',onTouchEnd,false);
+    scope.domElement.removeEventListener('touchmove',onTouchMove,false);
+    document.removeEventListener('mousemove',onMouseMove,false);
+    document.removeEventListener('mouseup',onMouseUp,false);
+  };
+  this.update();
+};
+THREE.OrbitControls.prototype=Object.create(THREE.EventDispatcher.prototype);
+THREE.OrbitControls.prototype.constructor=THREE.OrbitControls;
+})();
+</script>
+<script>
+// ─── DATA ────────────────────────────────────────────────────────────────────
+const ELEMENTS=[
+  {z:0,name:"Neutronium",symbol:"Nt",mass:0,family:"Unknown"},
+  {z:1,name:"Hidrógeno",symbol:"H",mass:1.008,family:"No Metal Reactivo"},
+  {z:2,name:"Helio",symbol:"He",mass:4.0026,family:"Gas Noble"},
+  {z:3,name:"Litio",symbol:"Li",mass:6.94,family:"Metal Alcalino"},
+  {z:4,name:"Berilio",symbol:"Be",mass:9.0122,family:"Alcalinotérreo"},
+  {z:5,name:"Boro",symbol:"B",mass:10.81,family:"Metaloide"},
+  {z:6,name:"Carbono",symbol:"C",mass:12.011,family:"No Metal Reactivo"},
+  {z:7,name:"Nitrógeno",symbol:"N",mass:14.007,family:"No Metal Reactivo"},
+  {z:8,name:"Oxígeno",symbol:"O",mass:15.999,family:"No Metal Reactivo"},
+  {z:9,name:"Flúor",symbol:"F",mass:18.998,family:"Halógeno"},
+  {z:10,name:"Neón",symbol:"Ne",mass:20.180,family:"Gas Noble"},
+  {z:11,name:"Sodio",symbol:"Na",mass:22.990,family:"Metal Alcalino"},
+  {z:12,name:"Magnesio",symbol:"Mg",mass:24.305,family:"Alcalinotérreo"},
+  {z:13,name:"Aluminio",symbol:"Al",mass:26.982,family:"Metal del bloque p"},
+  {z:14,name:"Silicio",symbol:"Si",mass:28.085,family:"Metaloide"},
+  {z:15,name:"Fósforo",symbol:"P",mass:30.974,family:"No Metal Reactivo"},
+  {z:16,name:"Azufre",symbol:"S",mass:32.06,family:"No Metal Reactivo"},
+  {z:17,name:"Cloro",symbol:"Cl",mass:35.45,family:"Halógeno"},
+  {z:18,name:"Argón",symbol:"Ar",mass:39.948,family:"Gas Noble"},
+  {z:19,name:"Potasio",symbol:"K",mass:39.098,family:"Metal Alcalino"},
+  {z:20,name:"Calcio",symbol:"Ca",mass:40.078,family:"Alcalinotérreo"},
+  {z:21,name:"Escandio",symbol:"Sc",mass:44.956,family:"Metal de Transición"},
+  {z:22,name:"Titanio",symbol:"Ti",mass:47.867,family:"Metal de Transición"},
+  {z:23,name:"Vanadio",symbol:"V",mass:50.942,family:"Metal de Transición"},
+  {z:24,name:"Cromo",symbol:"Cr",mass:51.996,family:"Metal de Transición"},
+  {z:25,name:"Manganeso",symbol:"Mn",mass:54.938,family:"Metal de Transición"},
+  {z:26,name:"Hierro",symbol:"Fe",mass:55.845,family:"Metal de Transición"},
+  {z:27,name:"Cobalto",symbol:"Co",mass:58.933,family:"Metal de Transición"},
+  {z:28,name:"Níquel",symbol:"Ni",mass:58.693,family:"Metal de Transición"},
+  {z:29,name:"Cobre",symbol:"Cu",mass:63.546,family:"Metal de Transición"},
+  {z:30,name:"Zinc",symbol:"Zn",mass:65.38,family:"Metal de Transición"},
+  {z:31,name:"Galio",symbol:"Ga",mass:69.723,family:"Metal del bloque p"},
+  {z:32,name:"Germanio",symbol:"Ge",mass:72.630,family:"Metaloide"},
+  {z:33,name:"Arsénico",symbol:"As",mass:74.922,family:"Metaloide"},
+  {z:34,name:"Selenio",symbol:"Se",mass:78.971,family:"No Metal Reactivo"},
+  {z:35,name:"Bromo",symbol:"Br",mass:79.904,family:"Halógeno"},
+  {z:36,name:"Kriptón",symbol:"Kr",mass:83.798,family:"Gas Noble"},
+  {z:37,name:"Rubidio",symbol:"Rb",mass:85.468,family:"Metal Alcalino"},
+  {z:38,name:"Estroncio",symbol:"Sr",mass:87.62,family:"Alcalinotérreo"},
+  {z:39,name:"Itrio",symbol:"Y",mass:88.906,family:"Metal de Transición"},
+  {z:40,name:"Zirconio",symbol:"Zr",mass:91.224,family:"Metal de Transición"},
+  {z:41,name:"Niobio",symbol:"Nb",mass:92.906,family:"Metal de Transición"},
+  {z:42,name:"Molibdeno",symbol:"Mo",mass:95.95,family:"Metal de Transición"},
+  {z:43,name:"Tecnecio",symbol:"Tc",mass:98,family:"Metal de Transición"},
+  {z:44,name:"Rutenio",symbol:"Ru",mass:101.07,family:"Metal de Transición"},
+  {z:45,name:"Rodio",symbol:"Rh",mass:102.91,family:"Metal de Transición"},
+  {z:46,name:"Paladio",symbol:"Pd",mass:106.42,family:"Metal de Transición"},
+  {z:47,name:"Plata",symbol:"Ag",mass:107.87,family:"Metal de Transición"},
+  {z:48,name:"Cadmio",symbol:"Cd",mass:112.41,family:"Metal de Transición"},
+  {z:49,name:"Indio",symbol:"In",mass:114.82,family:"Metal del bloque p"},
+  {z:50,name:"Estaño",symbol:"Sn",mass:118.71,family:"Metal del bloque p"},
+  {z:51,name:"Antimonio",symbol:"Sb",mass:121.76,family:"Metaloide"},
+  {z:52,name:"Telurio",symbol:"Te",mass:127.60,family:"Metaloide"},
+  {z:53,name:"Yodo",symbol:"I",mass:126.90,family:"Halógeno"},
+  {z:54,name:"Xenón",symbol:"Xe",mass:131.29,family:"Gas Noble"},
+  {z:55,name:"Cesio",symbol:"Cs",mass:132.91,family:"Metal Alcalino"},
+  {z:56,name:"Bario",symbol:"Ba",mass:137.33,family:"Alcalinotérreo"},
+  {z:57,name:"Lantano",symbol:"La",mass:138.91,family:"Lantánido"},
+  {z:58,name:"Cerio",symbol:"Ce",mass:140.12,family:"Lantánido"},
+  {z:59,name:"Praseodimio",symbol:"Pr",mass:140.91,family:"Lantánido"},
+  {z:60,name:"Neodimio",symbol:"Nd",mass:144.24,family:"Lantánido"},
+  {z:61,name:"Prometio",symbol:"Pm",mass:145,family:"Lantánido"},
+  {z:62,name:"Samario",symbol:"Sm",mass:150.36,family:"Lantánido"},
+  {z:63,name:"Europio",symbol:"Eu",mass:151.96,family:"Lantánido"},
+  {z:64,name:"Gadolinio",symbol:"Gd",mass:157.25,family:"Lantánido"},
+  {z:65,name:"Terbio",symbol:"Tb",mass:158.93,family:"Lantánido"},
+  {z:66,name:"Disprosio",symbol:"Dy",mass:162.50,family:"Lantánido"},
+  {z:67,name:"Holmio",symbol:"Ho",mass:164.93,family:"Lantánido"},
+  {z:68,name:"Erbio",symbol:"Er",mass:167.26,family:"Lantánido"},
+  {z:69,name:"Tulio",symbol:"Tm",mass:168.93,family:"Lantánido"},
+  {z:70,name:"Iterbio",symbol:"Yb",mass:173.05,family:"Lantánido"},
+  {z:71,name:"Lutecio",symbol:"Lu",mass:174.97,family:"Lantánido"},
+  {z:72,name:"Hafnio",symbol:"Hf",mass:178.49,family:"Metal de Transición"},
+  {z:73,name:"Tántalo",symbol:"Ta",mass:180.95,family:"Metal de Transición"},
+  {z:74,name:"Wolframio",symbol:"W",mass:183.84,family:"Metal de Transición"},
+  {z:75,name:"Renio",symbol:"Re",mass:186.21,family:"Metal de Transición"},
+  {z:76,name:"Osmio",symbol:"Os",mass:190.23,family:"Metal de Transición"},
+  {z:77,name:"Iridio",symbol:"Ir",mass:192.22,family:"Metal de Transición"},
+  {z:78,name:"Platino",symbol:"Pt",mass:195.08,family:"Metal de Transición"},
+  {z:79,name:"Oro",symbol:"Au",mass:196.97,family:"Metal de Transición"},
+  {z:80,name:"Mercurio",symbol:"Hg",mass:200.59,family:"Metal de Transición"},
+  {z:81,name:"Talio",symbol:"Tl",mass:204.38,family:"Metal del bloque p"},
+  {z:82,name:"Plomo",symbol:"Pb",mass:207.2,family:"Metal del bloque p"},
+  {z:83,name:"Bismuto",symbol:"Bi",mass:208.98,family:"Metal del bloque p"},
+  {z:84,name:"Polonio",symbol:"Po",mass:209,family:"Metaloide"},
+  {z:85,name:"Astato",symbol:"At",mass:210,family:"Halógeno"},
+  {z:86,name:"Radón",symbol:"Rn",mass:222,family:"Gas Noble"},
+  {z:87,name:"Francio",symbol:"Fr",mass:223,family:"Metal Alcalino"},
+  {z:88,name:"Radio",symbol:"Ra",mass:226,family:"Alcalinotérreo"},
+  {z:89,name:"Actinio",symbol:"Ac",mass:227,family:"Actínido"},
+  {z:90,name:"Torio",symbol:"Th",mass:232.04,family:"Actínido"},
+  {z:91,name:"Protactinio",symbol:"Pa",mass:231.04,family:"Actínido"},
+  {z:92,name:"Uranio",symbol:"U",mass:238.03,family:"Actínido"},
+  {z:93,name:"Neptunio",symbol:"Np",mass:237,family:"Actínido"},
+  {z:94,name:"Plutonio",symbol:"Pu",mass:244,family:"Actínido"},
+  {z:95,name:"Americio",symbol:"Am",mass:243,family:"Actínido"},
+  {z:96,name:"Curio",symbol:"Cm",mass:247,family:"Actínido"},
+  {z:97,name:"Berkelio",symbol:"Bk",mass:247,family:"Actínido"},
+  {z:98,name:"Californio",symbol:"Cf",mass:251,family:"Actínido"},
+  {z:99,name:"Einstenio",symbol:"Es",mass:252,family:"Actínido"},
+  {z:100,name:"Fermio",symbol:"Fm",mass:257,family:"Actínido"},
+  {z:101,name:"Mendelevio",symbol:"Md",mass:258,family:"Actínido"},
+  {z:102,name:"Nobelio",symbol:"No",mass:259,family:"Actínido"},
+  {z:103,name:"Lawrencio",symbol:"Lr",mass:262,family:"Actínido"},
+  {z:104,name:"Rutherfordio",symbol:"Rf",mass:267,family:"Metal de Transición"},
+  {z:105,name:"Dubnio",symbol:"Db",mass:270,family:"Metal de Transición"},
+  {z:106,name:"Seaborgio",symbol:"Sg",mass:271,family:"Metal de Transición"},
+  {z:107,name:"Bohrio",symbol:"Bh",mass:270,family:"Metal de Transición"},
+  {z:108,name:"Hasio",symbol:"Hs",mass:277,family:"Metal de Transición"},
+  {z:109,name:"Meitnerio",symbol:"Mt",mass:276,family:"Unknown"},
+  {z:110,name:"Darmstatio",symbol:"Ds",mass:281,family:"Unknown"},
+  {z:111,name:"Roentgenio",symbol:"Rg",mass:280,family:"Unknown"},
+  {z:112,name:"Copernicio",symbol:"Cn",mass:285,family:"Metal de Transición"},
+  {z:113,name:"Nihonio",symbol:"Nh",mass:284,family:"Unknown"},
+  {z:114,name:"Flerovio",symbol:"Fl",mass:289,family:"Unknown"},
+  {z:115,name:"Moscovio",symbol:"Mc",mass:288,family:"Unknown"},
+  {z:116,name:"Livermorio",symbol:"Lv",mass:293,family:"Unknown"},
+  {z:117,name:"Teneso",symbol:"Ts",mass:294,family:"Unknown"},
+  {z:118,name:"Oganesón",symbol:"Og",mass:294,family:"Gas Noble"},
+];
+
+const AUFBAU=[
+  {name:'1s',n:1,l:0,cap:2},{name:'2s',n:2,l:0,cap:2},{name:'2p',n:2,l:1,cap:6},
+  {name:'3s',n:3,l:0,cap:2},{name:'3p',n:3,l:1,cap:6},{name:'4s',n:4,l:0,cap:2},
+  {name:'3d',n:3,l:2,cap:10},{name:'4p',n:4,l:1,cap:6},{name:'5s',n:5,l:0,cap:2},
+  {name:'4d',n:4,l:2,cap:10},{name:'5p',n:5,l:1,cap:6},{name:'6s',n:6,l:0,cap:2},
+  {name:'4f',n:4,l:3,cap:14},{name:'5d',n:5,l:2,cap:10},{name:'6p',n:6,l:1,cap:6},
+  {name:'7s',n:7,l:0,cap:2},{name:'5f',n:5,l:3,cap:14},{name:'6d',n:6,l:2,cap:10},
+  {name:'7p',n:7,l:1,cap:6},
+];
+
+const OC={s:0x4cc9f0,p:0xf72585,d:0xffd60a,f:0x7209b7};
+const OC_CSS={s:'#4cc9f0',p:'#f72585',d:'#ffd60a',f:'#7209b7'};
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let Z=6, N=6, charge=0, density=1500, showElectrons=true, modelType='quantum', paused=false;
+let activeLayers={};
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function getConfig(electrons){
+  let rem=electrons; const cfg=[];
+  for(const s of AUFBAU){
+    if(rem<=0) break;
+    const c=Math.min(s.cap,rem); cfg.push({...s,count:c}); rem-=c;
+  }
+  return cfg;
+}
+
+function getStability(z,n){
+  if(z>82||z===43||z===61) return {text:'Radiactivo / Inestable',cls:'stab-red',icon:'⚠'};
+  const diff=Math.abs(z+n-Math.round(ELEMENTS[z].mass));
+  if(diff===0) return {text:'Isótopo Estable',cls:'stab-green',icon:'✓'};
+  if(diff<=1+Math.floor(z/40)) return {text:'Probablemente Estable',cls:'stab-yellow',icon:'✓'};
+  return {text:'Radiactivo / Inestable',cls:'stab-red',icon:'⚠'};
+}
+
+// ─── PROBABILITY FUNCTIONS ───────────────────────────────────────────────────
+function probS(x,y,z,n){return Math.exp(-Math.sqrt(x*x+y*y+z*z)*2.5/n);}
+function probP(x,y,z,n,ax){
+  const r=Math.sqrt(x*x+y*y+z*z); if(!r)return 0;
+  const a=ax==='x'?x*x:ax==='y'?y*y:z*z;
+  return r*Math.exp(-r*2/n)*(a/(r*r));
+}
+function probD(x,y,z,n,t){
+  const r=Math.sqrt(x*x+y*y+z*z); if(!r)return 0;
+  const r2=r*r; let a=0;
+  if(t==='xy')a=Math.pow(Math.abs(x*y)/r2,2)*4;
+  else if(t==='yz')a=Math.pow(Math.abs(y*z)/r2,2)*4;
+  else if(t==='xz')a=Math.pow(Math.abs(x*z)/r2,2)*4;
+  else if(t==='x2-y2')a=Math.pow(Math.abs(x*x-y*y)/r2,2);
+  else if(t==='z2'){const v=2*z*z-x*x-y*y;a=Math.pow(v/r2,2)*0.25;}
+  return r2*Math.exp(-r*2/n)*a;
+}
+function probF(x,y,z,n){
+  const r=Math.sqrt(x*x+y*y+z*z); if(!r)return 0;
+  return r*r*Math.exp(-r*1.8/n)*(Math.abs(x*y*z)+Math.abs(x*x-y*y)*Math.abs(z))/(r*r*r)*10;
+}
+
+// ─── NUCLEUS ─────────────────────────────────────────────────────────────────
+function buildNucleus(Z,N){
+  const g=new THREE.Group();
+  const total=Z+N;
+  const pm=new THREE.MeshPhongMaterial({color:0xe11d48,shininess:80});
+  const nm=new THREE.MeshPhongMaterial({color:0x94a3b8,shininess:80});
+  const pr=total>100?0.10:0.15;
+  const geo=new THREE.SphereGeometry(pr,10,10);
+  const pts=[];
+  for(let i=0;i<total;i++){
+    const m=new THREE.Mesh(geo,i<Z?pm:nm);
+    pts.push(m); g.add(m);
+  }
+  const sp=total>100?1.5:total>20?1.0:0.6;
+  pts.forEach(p=>p.position.set((Math.random()-.5)*sp,(Math.random()-.5)*sp,(Math.random()-.5)*sp));
+  for(let it=0;it<12;it++){
+    for(let i=0;i<total;i++){
+      pts[i].position.multiplyScalar(0.95);
+      for(let j=0;j<total;j++){
+        if(i===j||Math.abs(i-j)>20)continue;
+        const d2=pts[i].position.distanceToSquared(pts[j].position);
+        const md=pr*2.05;
+        if(d2<md*md){
+          const dist=Math.sqrt(d2);
+          const push=new THREE.Vector3().subVectors(pts[i].position,pts[j].position).normalize().multiplyScalar((md-dist)*0.5);
+          pts[i].position.add(push); pts[j].position.sub(push);
+        }
+      }
+    }
+  }
+  return g;
+}
+
+// ─── THREE.JS SCENE ──────────────────────────────────────────────────────────
+let scene, camera, renderer, controls;
+let nucGroup, qGroup, bohrGroup;
+let frameId;
+
+function initScene(){
+  const container=document.getElementById('canvas-container');
+  const W=container.clientWidth, H=container.clientHeight;
+
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x0f172a);
+
+  camera=new THREE.PerspectiveCamera(50,W/H,0.1,1000);
+  camera.position.set(20,20,20);
+
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(W,H);
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  container.appendChild(renderer.domElement);
+
+  controls=new THREE.OrbitControls(camera,renderer.domElement);
+  controls.enableDamping=true;
+
+  scene.add(new THREE.AmbientLight(0xffffff,0.6));
+  const dl=new THREE.DirectionalLight(0xffffff,1.2);
+  dl.position.set(10,10,10); scene.add(dl);
+
+  nucGroup=new THREE.Group(); scene.add(nucGroup);
+  qGroup=new THREE.Group(); scene.add(qGroup);
+  bohrGroup=new THREE.Group(); scene.add(bohrGroup);
+
+  window.addEventListener('resize',()=>{
+    camera.aspect=container.clientWidth/container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth,container.clientHeight);
+  });
+
+  animate();
+}
+
+function animate(){
+  frameId=requestAnimationFrame(animate);
+  controls.update();
+  if(!paused){
+    const t=Date.now()*0.001;
+    if(modelType==='bohr'){
+      bohrGroup.children.forEach((rg,i)=>{
+        rg.children.forEach(c=>{
+          if(c.userData.isElectron){
+            const ang=t*(1+i*0.15)+c.userData.offset;
+            c.position.set(Math.cos(ang)*c.userData.r,0,Math.sin(ang)*c.userData.r);
+          }
+        });
+      });
+    } else {
+      qGroup.rotation.y+=0.002;
+    }
+  }
+  renderer.render(scene,camera);
+}
+
+function rebuildNucleus(){
+  nucGroup.clear();
+  if(Z>0) nucGroup.add(buildNucleus(Z,N));
+}
+
+function rebuildOrbitals(){
+  qGroup.clear(); bohrGroup.clear();
+  const electrons=Math.max(0,Z-charge);
+  const config=getConfig(electrons);
+  const t0=Date.now()*0.001;
+
+  if(modelType==='quantum'){
+    qGroup.visible=true; bohrGroup.visible=false;
+    config.forEach(sub=>{
+      if(!activeLayers[sub.name])return;
+      const {n,l,name}=sub;
+      const color=OC[name.charAt(1)]||0xffffff;
+      const mat=new THREE.MeshPhongMaterial({color,transparent:true,opacity:0.12,shininess:90,side:THREE.DoubleSide,depthWrite:false});
+      const sc=n*2.2;
+      if(l===0){
+        const m=new THREE.Mesh(new THREE.SphereGeometry(1,32,32),mat);
+        m.scale.setScalar(sc); qGroup.add(m);
+      } else if(l===1){
+        const grp=new THREE.Group();
+        const lobe=new THREE.SphereGeometry(1,20,20); lobe.scale(0.6,1,0.6);
+        const d=sc*0.8;
+        [[0,0,1.57],[0,0,0],[1.57,0,0]].forEach(rot=>{
+          const ax=new THREE.Group();
+          const l1=new THREE.Mesh(lobe,mat); l1.position.y=d;
+          const l2=new THREE.Mesh(lobe,mat); l2.position.y=-d;
+          ax.add(l1,l2); ax.rotation.set(...rot); grp.add(ax);
+        });
+        grp.scale.setScalar(sc*0.5); qGroup.add(grp);
+      } else if(l===2){
+        const tm=new THREE.MeshPhongMaterial({color,transparent:true,opacity:0.1,side:THREE.DoubleSide,depthWrite:false});
+        const t1=new THREE.Mesh(new THREE.TorusGeometry(sc*0.5,sc*0.1,16,50),tm);
+        t1.rotation.x=Math.PI/2;
+        const s1=new THREE.Mesh(new THREE.SphereGeometry(1,32,32),mat); s1.scale.setScalar(sc*0.8);
+        qGroup.add(t1,s1);
+      } else {
+        const m=new THREE.Mesh(new THREE.SphereGeometry(1,32,32),mat); m.scale.setScalar(sc*1.5); qGroup.add(m);
+      }
+      if(showElectrons){
+        const pos=[]; const count=Math.min(density,2000); const b=4+n*4; let c=0;
+        for(let i=0;i<count*3&&c<count;i++){
+          const x=(Math.random()-.5)*2*b,y=(Math.random()-.5)*2*b,zz=(Math.random()-.5)*2*b;
+          let p=0;
+          if(l===0)p=probS(x,y,zz,n);
+          else if(l===1)p=Math.max(probP(x,y,zz,n,'x'),probP(x,y,zz,n,'y'),probP(x,y,zz,n,'z'));
+          else if(l===2)p=Math.max(probD(x,y,zz,n,'xy'),probD(x,y,zz,n,'yz'),probD(x,y,zz,n,'xz'),probD(x,y,zz,n,'x2-y2'),probD(x,y,zz,n,'z2'));
+          else p=probF(x,y,zz,n);
+          if(Math.random()<p*6){pos.push(x,y,zz);c++;}
+        }
+        const geo=new THREE.BufferGeometry();
+        geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+        qGroup.add(new THREE.Points(geo,new THREE.PointsMaterial({size:0.12,color,transparent:true,opacity:0.6,blending:THREE.AdditiveBlending,depthWrite:false})));
+      }
+    });
+  } else {
+    qGroup.visible=false; bohrGroup.visible=true;
+    const shells={}; config.forEach(s=>{shells[s.n]=(shells[s.n]||0)+s.count;});
+    const nKeys=Object.keys(shells);
+    Object.entries(shells).forEach(([n,count])=>{
+      const r=5+parseInt(n)*3.5;
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(r,0.05,16,100),new THREE.MeshBasicMaterial({color:0x555555,transparent:true,opacity:0.5}));
+      ring.rotation.x=Math.PI/2;
+      const grp=new THREE.Group(); grp.add(ring);
+      if(showElectrons){
+        const em=new THREE.MeshPhongMaterial({color:0x4cc9f0,emissive:0x0088ff});
+        const eg=new THREE.SphereGeometry(0.3,14,14);
+        for(let i=0;i<count;i++){
+          const el=new THREE.Mesh(eg,em);
+          const off=(i/count)*Math.PI*2;
+          el.userData={isElectron:true,r,offset:off};
+          const ia=t0*(1+nKeys.indexOf(String(n))*0.15)+off;
+          el.position.set(Math.cos(ia)*r,0,Math.sin(ia)*r);
+          grp.add(el);
+        }
+      }
+      bohrGroup.add(grp);
+    });
+  }
+}
+
+// ─── UI UPDATE ───────────────────────────────────────────────────────────────
+function updateUI(){
+  const electrons=Math.max(0,Z-charge);
+  const config=getConfig(electrons);
+  const el=ELEMENTS[Z];
+  const A=Z+N;
+
+  // Sync activeLayers
+  const newKeys=new Set(config.map(c=>c.name));
+  config.forEach(c=>{ if(activeLayers[c.name]===undefined) activeLayers[c.name]=true; });
+  Object.keys(activeLayers).forEach(k=>{ if(!newKeys.has(k)) delete activeLayers[k]; });
+
+  // Info overlay
+  document.getElementById('info-name').childNodes[0].textContent=el.name+' ';
+  document.getElementById('info-sym').textContent='('+el.symbol+')';
+  document.getElementById('info-family').textContent=el.family;
+  document.getElementById('info-nums').textContent='Z = '+Z+' · A = '+A+' · '+electrons+' e⁻';
+
+  // Sidebar counters
+  document.getElementById('n-val').textContent=N;
+  document.getElementById('mass-label').textContent='Masa A = '+A;
+  const chv=document.getElementById('ch-val');
+  chv.textContent=charge>0?'+'+charge:String(charge);
+  chv.style.color=charge>0?'#f87171':charge<0?'#4ade80':'#f1f5f9';
+
+  // Stability
+  const stab=getStability(Z,N);
+  const stabDiv=document.getElementById('stab-div');
+  stabDiv.className='stab '+stab.cls;
+  stabDiv.textContent=stab.icon+' '+stab.text;
+
+  // Density label
+  document.getElementById('density-label').textContent=density;
+
+  // Layers grid
+  const grid=document.getElementById('layers-grid');
+  grid.innerHTML='';
+  const layersSection=document.getElementById('layers-section');
+  layersSection.style.display=modelType==='quantum'?'':'none';
+
+  if(modelType==='quantum'){
+    if(config.length===0){
+      grid.innerHTML='<span style="color:#475569;font-size:11px;font-style:italic;grid-column:span 2">Sin electrones</span>';
+    } else {
+      config.forEach(s=>{
+        const btn=document.createElement('button');
+        const on=activeLayers[s.name];
+        btn.className='layer-btn'+(on?'':' off');
+        btn.innerHTML=s.name+'<sup style="color:#64748b;margin-left:2px">'+s.count+'e⁻</sup>'
+          +'<span class="layer-dot" style="background:'+(OC_CSS[s.name.charAt(1)]||'#fff')+'"></span>';
+        btn.onclick=()=>{ activeLayers[s.name]=!activeLayers[s.name]; updateUI(); rebuildOrbitals(); };
+        grid.appendChild(btn);
+      });
+    }
+  }
+
+  // Legend
+  const leg=document.getElementById('legend');
+  leg.innerHTML='';
+  if(modelType==='quantum'){
+    const present=new Set(config.map(c=>c.name.charAt(1)));
+    Object.entries(OC_CSS).filter(([t])=>present.has(t)).forEach(([t,c])=>{
+      leg.innerHTML+='<div class="leg-row"><span class="leg-dot" style="background:'+c+'"></span>Orbital '+t+'</div>';
+    });
+  }
+  leg.innerHTML+='<div class="leg-row"><span class="leg-dot" style="background:#e11d48"></span>Protón</div>';
+  leg.innerHTML+='<div class="leg-row"><span class="leg-dot" style="background:#94a3b8"></span>Neutrón</div>';
+  if(modelType==='bohr') leg.innerHTML+='<div class="leg-row"><span class="leg-dot" style="background:#4cc9f0"></span>Electrón</div>';
+}
+
+function fullUpdate(){
+  updateUI();
+  rebuildNucleus();
+  rebuildOrbitals();
+}
+
+// ─── EVENT LISTENERS ─────────────────────────────────────────────────────────
+function setZ(val){
+  Z=Math.max(1,Math.min(118,parseInt(val)||1));
+  charge=0;
+  N=Math.round(Z*(Z<20?1:Z<60?1.2:1.5));
+  document.getElementById('el-select').value=Z;
+  fullUpdate();
+}
+
+// Populate select
+const sel=document.getElementById('el-select');
+ELEMENTS.slice(1).forEach(e=>{
+  const o=document.createElement('option');
+  o.value=e.z; o.textContent=e.z+'. '+e.name+' ('+e.symbol+')';
+  sel.appendChild(o);
+});
+sel.value=6;
+sel.addEventListener('change',e=>setZ(e.target.value));
+
+document.getElementById('n-minus').addEventListener('click',()=>{ N=Math.max(0,N-1); fullUpdate(); });
+document.getElementById('n-plus').addEventListener('click',()=>{ N++; fullUpdate(); });
+document.getElementById('ch-minus').addEventListener('click',()=>{ charge--; fullUpdate(); });
+document.getElementById('ch-plus').addEventListener('click',()=>{ charge++; fullUpdate(); });
+
+document.getElementById('tab-quantum').addEventListener('click',()=>{
+  modelType='quantum';
+  document.getElementById('tab-quantum').className='tab-btn active-q';
+  document.getElementById('tab-bohr').className='tab-btn';
+  fullUpdate();
+});
+document.getElementById('tab-bohr').addEventListener('click',()=>{
+  modelType='bohr';
+  document.getElementById('tab-bohr').className='tab-btn active-b';
+  document.getElementById('tab-quantum').className='tab-btn';
+  fullUpdate();
+});
+
+document.getElementById('toggle-electrons').addEventListener('click',function(){
+  showElectrons=!showElectrons;
+  const eyeOpen='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const eyeClosed='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  this.querySelector('svg')?this.querySelector('svg').outerHTML:'';
+  this.innerHTML='<span>Electrones</span>'+(showElectrons?eyeOpen:eyeClosed);
+  rebuildOrbitals();
+});
+
+document.getElementById('pause-btn').addEventListener('click',function(){
+  paused=!paused;
+  this.classList.toggle('active',paused);
+  this.innerHTML=paused
+    ?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>'
+    :'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+});
+
+document.getElementById('density-range').addEventListener('input',function(){
+  density=parseInt(this.value);
+  document.getElementById('density-label').textContent=density;
+  rebuildOrbitals();
+});
+
+document.getElementById('help-btn').addEventListener('click',()=>{
+  document.getElementById('modal-bg').classList.add('open');
+});
+document.getElementById('modal-close').addEventListener('click',()=>{
+  document.getElementById('modal-bg').classList.remove('open');
+});
+document.getElementById('modal-bg').addEventListener('click',function(e){
+  if(e.target===this) this.classList.remove('open');
+});
+
+// ─── BOOT ────────────────────────────────────────────────────────────────────
+initScene();
+fullUpdate();
+</script>
+</body>
+</html>
