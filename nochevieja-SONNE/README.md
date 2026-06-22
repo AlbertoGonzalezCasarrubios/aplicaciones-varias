@@ -7,3 +7,5 @@ Esta aplicación fue creada para tomarse las uvas en Nochevieja (tradición espa
 Cuando le das al botón de empezar o al espacio, empieza una cuenta atrás de 5 segundos, y cuando llega el año nuevo hay fuegos artificiales de meiofauna. 
 
 Nos lo pasamos bien.
+
+PD: Para quien no lo sepa, las uvas de España se toman en los primeros segundos del año que entra y no en los últimos del que acaba, y además no se toma una uva cada segundo sino una uva cada 3. Es impresionante lo que se puede aprender haciendo una aplicación por otro lado completamente inútil. En cualquier caso, como acto de rebeldía, esta aplicación está pensada para que sean las últimas uvas del año, así que si la usáis, dadle a la cuenta atrás 41 segundos antes de que acabe el año. 
