@@ -8,4 +8,5 @@ Espero que le sea útil a alguien.
 ## Aplicaciones Disponibles:
 
 * **Simulador de Átomos:** https://albertogonzalezcasarrubios.github.io/aplicaciones-varias/visualizador-atomos
+* **Chladni Simulator:** https://albertogonzalezcasarrubios.github.io/aplicaciones-varias/chaldni-simulator
 * **Campanadas R/V SONNE:** https://albertogonzalezcasarrubios.github.io/aplicaciones-varias/nochevieja-SONNE
