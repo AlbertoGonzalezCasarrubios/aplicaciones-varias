@@ -1,5 +1,7 @@
 Las placas de Chaldni (Chladni plates) consisten en una lámina de metal circular o cuadrada con arena o sal por encima que se hace vibrar en distintas frecuencias específicas. Es un experimento clásico de la formación de ondas estacionarias; el metal se mueve en respuesta a la vibración y la arena que está encima se acumula en zonas que no vibra (líneas nodales), formando patrones geométricos. 
 
+Demostración  práctica: https://youtu.be/lRFysSAxWxI?si=a-rAS8YvovoLrLRZ
+
 Esta simulación en HTML permite visualizar 
 
 Esta simulación en HTML permite visualizar de manera simulada este fenómeno físico a través de un motor de partículas bidimensional y un renderizador tridimensional. El software resuelve de forma continua la ecuación de onda estacionaria (ver abajo) para una membrana cuadrada rígida, simulando el comportamiento de miles de partículas de arena reaccionando a la aceleración acústica.
