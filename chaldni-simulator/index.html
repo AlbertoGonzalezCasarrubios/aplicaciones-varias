@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chladni Plate Simulator - Advanced Acoustics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js and 3D Support Imports -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #090d16; /* Deep space dark color */
+            color: #f1f5f9;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        
+        /* Main Layout */
+        #main-wrapper {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Frosted Glass Sidebar */
+        #sidebar {
+            width: 380px;
+            background: rgba(13, 20, 35, 0.85);
+            backdrop-filter: blur(16px);
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-direction: column;
+            z-index: 40;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), margin-left 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            flex-shrink: 0;
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Smooth UI hiding mechanism on desktop */
+        .sidebar-hidden #sidebar {
+            transform: translateX(-100%);
+            margin-left: -380px;
+        }
+
+        /* Canvas Area */
+        #canvas-area {
+            flex: 1;
+            position: relative;
+            background: #020408;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        canvas {
+            display: block;
+            outline: none;
+        }
+
+        @media (max-width: 1024px) {
+            #sidebar {
+                position: absolute;
+                height: 100%;
+                transform: translateX(-100%);
+            }
+            #sidebar.open {
+                transform: translateX(0);
+            }
+            .sidebar-hidden #sidebar {
+                transform: translateX(-100%) !important;
+                margin-left: 0 !important;
+            }
+        }
+
+        /* Range Sliders Styling */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+            width: 100%;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #06b6d4; /* Neon cyan */
+            cursor: pointer;
+            margin-top: -6px; 
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
+            border: 2px solid #ffffff;
+            transition: transform 0.1s, background-color 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:active {
+            transform: scale(1.3);
+            background: #22d3ee;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #1e293b;
+            border-radius: 2px;
+        }
+
+        .mode-btn { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .mode-btn.active {
+            background-color: #06b6d4;
+            color: #ffffff;
+            font-weight: 600;
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+        }
+
+        /* Elegant natural math typography without italics */
+        .math-font {
+            font-family: "Cambria Math", "Latin Modern Math", "Georgia", "Times New Roman", serif;
+            letter-spacing: 0.5px;
+            font-style: normal !important;
+        }
+
+        /* Interactive glow */
+        .glow-effect {
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="main-wrapper">
+        <!-- Control Sidebar -->
+        <div id="sidebar" class="p-6 overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-2">
+                    <span class="p-1.5 bg-cyan-500/20 rounded-md text-cyan-400">
+                        <!-- Abstract sine wave icon -->
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 12h3l3-9 6 18 3-9h3" />
+                        </svg>
+                    </span>
+                    <h1 class="text-2xl font-bold tracking-tight text-white">Chladni Simulator</h1>
+                </div>
+                <button id="close-sidebar" class="lg:hidden text-slate-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <div class="space-y-5 flex-1">
+                <!-- 2D/3D Mode Button -->
+                <div class="bg-slate-900/90 p-1 rounded-lg flex border border-slate-800">
+                    <button id="btn-2d" class="mode-btn active flex-1 py-2 text-sm rounded-md transition text-slate-300 hover:bg-slate-800">2D View</button>
+                    <button id="btn-3d" class="mode-btn flex-1 py-2 text-sm rounded-md transition text-slate-300 hover:bg-slate-800">3D View</button>
+                </div>
+
+                <!-- Beautiful Stationary Wave Equation -->
+                <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Stationary Wave Equation</h2>
+                    <div class="math-font text-lg text-center text-amber-200 bg-slate-950/70 py-3 px-2 rounded-lg border border-slate-800/80 select-all font-normal">
+                        Z(x, y) = cos(n&pi;x)&middot;cos(m&pi;y) + K&middot;cos(m&pi;x)&middot;cos(n&pi;y)
+                    </div>
+                </div>
+
+                <!-- Wave/Harmonic Sliders -->
+                <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-800 space-y-4">
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Wave Parameters (Harmonics)</h2>
+                    
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">Horizontal Wave Number (n)</span>
+                            <span id="val-n" class="font-mono text-cyan-400">5.0</span>
+                        </div>
+                        <input type="range" id="input-n" min="0" max="30" step="0.1" value="5">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">Vertical Wave Number (m)</span>
+                            <span id="val-m" class="font-mono text-cyan-400">3.0</span>
+                        </div>
+                        <input type="range" id="input-m" min="0" max="30" step="0.1" value="3">
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-800">
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">Mixing Constant (K)</span>
+                            <span id="val-k" class="font-mono text-cyan-400">-1.00</span>
+                        </div>
+                        <input type="range" id="input-k" min="-2" max="2" step="0.05" value="-1">
+                        <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                            <span>Boundary (-2.0)</span>
+                            <span>Symmetric (0.0)</span>
+                            <span>Annular (2.0)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sand Customization Parameters -->
+                <div class="bg-slate-900/40 p-4 rounded-xl border border-slate-800 space-y-4">
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Sand Properties</h2>
+                    
+                    <!-- Sand Colors -->
+                    <div>
+                        <label class="text-xs text-slate-300 block mb-2">Material Color</label>
+                        <div class="flex gap-2 items-center" id="color-selectors">
+                            <button class="color-dot w-6 h-6 rounded-full border border-white/20 bg-yellow-300 relative" data-color="#fde047"></button>
+                            <button class="color-dot w-6 h-6 rounded-full border border-white/20 bg-cyan-400" data-color="#22d3ee"></button>
+                            <button class="color-dot w-6 h-6 rounded-full border border-white/20 bg-emerald-400" data-color="#34d399"></button>
+                            <button class="color-dot w-6 h-6 rounded-full border border-white/20 bg-white" data-color="#ffffff"></button>
+                            <button class="color-dot w-6 h-6 rounded-full border border-white/20 bg-gradient-to-r from-red-500 via-green-500 to-blue-500" data-color="rainbow" title="Harmonic Spectrum"></button>
+                            
+                            <!-- Visual divider -->
+                            <div class="w-[1px] h-4 bg-slate-700 mx-1"></div>
+
+                            <!-- Custom Color Picker Trigger -->
+                            <button id="btn-custom-color" class="w-6 h-6 rounded-full border border-white/30 bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 relative transition hover:scale-110 active:scale-95" title="Custom color picker"></button>
+                            <input type="color" id="input-custom-color" class="hidden" value="#f1f5f9">
+                        </div>
+                    </div>
+
+                    <!-- Particle Trails -->
+                    <div class="flex justify-between items-center pt-2 border-t border-slate-800">
+                        <span class="text-xs text-slate-300">Motion Trails (Fade)</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="check-trails" class="sr-only peer">
+                            <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+                        </label>
+                    </div>
+
+                    <!-- Sand agitation response -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">Sand Response (Intensity)</span>
+                            <span id="val-speed" class="font-mono text-cyan-400">Medium</span>
+                        </div>
+                        <input type="range" id="input-speed" min="1" max="40" value="18">
+                    </div>
+
+                    <!-- Sand particle count -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">Sand Particles</span>
+                            <span id="val-count" class="font-mono text-emerald-400">30000</span>
+                        </div>
+                        <input type="range" id="input-count" min="5000" max="80000" step="5000" value="30000">
+                    </div>
+                </div>
+
+                <!-- 3D Specific Settings -->
+                <div id="panel-3d-only" class="bg-slate-900/40 p-4 rounded-xl border border-slate-800 space-y-4 opacity-50 pointer-events-none transition-all duration-300">
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">3D Parameters</h2>
+                    
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">Oscillation Speed (Wave)</span>
+                            <span id="val-osc-speed" class="font-mono text-amber-400">0.25x</span>
+                        </div>
+                        <!-- Granular slider for slow motion and static visualization -->
+                        <input type="range" id="input-osc-speed" min="0" max="2" step="0.02" value="0.25">
+                        <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                            <span>Paused</span>
+                            <span>Super Slow</span>
+                            <span>Smooth (1x)</span>
+                            <span>Fast (2x)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button id="reset-particles" class="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold rounded-xl shadow-lg transition transform active:scale-95">
+                        Scatter Sand
+                    </button>
+                    <button id="btn-info" class="px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition" title="Theory and manual">
+                        ℹ️
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulation Screen Area -->
+        <div id="canvas-area">
+            <!-- Mobile Menu Toggle -->
+            <button id="toggle-sidebar" class="lg:hidden absolute top-4 left-4 z-50 p-2.5 bg-slate-900 text-white rounded-lg shadow-lg border border-slate-800 hover:bg-slate-800">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+
+            <!-- Show/Hide Interface Controller -->
+            <button id="btn-toggle-ui" class="absolute top-4 right-4 z-50 flex items-center gap-2 px-3 py-2 bg-slate-900/80 backdrop-blur border border-slate-700 hover:border-cyan-500/50 hover:bg-slate-800 text-xs font-semibold rounded-xl text-slate-200 transition pointer-events-auto shadow-lg">
+                <svg id="eye-icon" class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <span id="text-toggle-ui">Hide UI</span>
+            </button>
+
+            <!-- 2D Canvas -->
+            <canvas id="sim-canvas-2d" class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+            
+            <!-- 3D Container -->
+            <div id="sim-container-3d" class="absolute inset-0 w-full h-full hidden"></div>
+            
+            <!-- Navigation Overlay Hint (2D Mode Only) -->
+            <div id="zoom-hint" class="absolute bottom-4 left-4 pointer-events-none text-left z-10">
+                <div class="text-[11px] text-slate-400 bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800 backdrop-blur">
+                    2D Canvas: Scroll to Zoom | Drag to Pan | Double Click to Reset
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Theory and Manual Modal -->
+    <div id="info-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div class="bg-slate-900 max-w-2xl w-full max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-800 p-6 shadow-2xl">
+            <div class="flex justify-between items-start border-b border-slate-800 pb-4 mb-4">
+                <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                    Theory of Chladni Plates
+                </h3>
+                <button id="close-modal" class="text-slate-400 hover:text-white text-lg font-bold">✕</button>
+            </div>
+            
+            <div class="space-y-5 text-slate-300 text-sm leading-relaxed">
+                <section>
+                    <h4 class="font-bold text-cyan-400 mb-1">What is this simulation?</h4>
+                    <p>
+                        Chladni patterns occur when a thin metal plate is subjected to transverse standing waves induced by an acoustic tone. The plate does not vibrate uniformly: it forms regions of maximum vibration (antinodes) and regions of absolute rest called <strong>nodal lines</strong>.
+                    </p>
+                </section>
+
+                <section class="bg-slate-950/60 p-4 rounded-lg border border-slate-800/80 space-y-3">
+                    <h4 class="font-bold text-amber-200 mb-1">Physical Behavior & The Wave Equation</h4>
+                    <p>
+                        Each grain of sand experiences physical acceleration on the vibrating surface. In active antinode zones, the sand is catapulted into the air in a random walk. Once particles fall onto a nodal line, they stop bouncing and accumulate, revealing the invisible geometry of sound.
+                    </p>
+                    <p>
+                        For an ideal square plate, the standing wave pattern Z(x, y) is approximated by:
+                    </p>
+                    <div class="math-font text-center text-sm text-cyan-300 bg-slate-900/60 py-2.5 rounded font-semibold border border-slate-800">
+                        Z(x, y) = cos(n&pi;x) &middot; cos(m&pi;y) + K &middot; cos(m&pi;x) &middot; cos(n&pi;y)
+                    </div>
+                    <p>
+                        The coefficients n and m represent the harmonic wave modes, and K is a boundary constant that determines how the plate is excited or bowed.
+                    </p>
+                </section>
+
+                <section class="border-t border-slate-800 pt-4">
+                    <h4 class="font-bold text-emerald-400 mb-1">How to use the Simulator:</h4>
+                    <ul class="list-disc list-inside space-y-1.5 text-xs text-slate-400">
+                        <li><strong>Wave Modes:</strong> Tweak the n and m sliders to increase the frequency and observe different geometries.</li>
+                        <li><strong>The K Slider:</strong> Set K to -1.0 for diagonal and orthogonal lines, or slide toward +1.0 or +2.0 to reveal concentric rings.</li>
+                        <li><strong>Motion Trails:</strong> Toggle "Trails" to visualize the pathway particles take to reach the quiet nodal lines.</li>
+                        <li><strong>3D Analysis:</strong> Switch to "3D View" and drag the screen to rotate.</li>
+                    </ul>
+                </section>
+            </div>
+            
+            <button id="close-modal-btn" class="mt-6 w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition border border-slate-700">
+                Got it! Let's start
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Global State ---
+        const state = {
+            m: 3.0,
+            n: 5.0,
+            k: -1.00,
+            speed: 18,
+            particleCount: 30000,
+            mode: '2d',
+            width: 0,
+            height: 0,
+            sandColor: '#fde047',
+            enableTrails: false,
+            oscSpeed: 0.25,
+            is3dInitialized: false,
+            // Zoom & Pan 2D States
+            zoom2D: 1.0,
+            pan2D: { x: 0, y: 0 }
+        };
+
+        // --- Safe DOM Getters ---
+        const getEl = (id) => document.getElementById(id);
+
+        const ui = {
+            m: getEl('input-m'),
+            n: getEl('input-n'),
+            k: getEl('input-k'),
+            speed: getEl('input-speed'),
+            count: getEl('input-count'),
+            oscSpeed: getEl('input-osc-speed'),
+            valM: getEl('val-m'),
+            valN: getEl('val-n'),
+            valK: getEl('val-k'),
+            valCount: getEl('val-count'),
+            valSpeed: getEl('val-speed'),
+            valOscSpeed: getEl('val-osc-speed'),
+            btn2d: getEl('btn-2d'),
+            btn3d: getEl('btn-3d'),
+            panel3d: getEl('panel-3d-only'),
+            resetBtn: getEl('reset-particles'),
+            sidebar: getEl('sidebar'),
+            toggleSidebar: getEl('toggle-sidebar'),
+            closeSidebar: getEl('close-sidebar'),
+            canvas2d: getEl('sim-canvas-2d'),
+            container3d: getEl('sim-container-3d'),
+            canvasArea: getEl('canvas-area'),
+            checkTrails: getEl('check-trails'),
+            // Modal
+            btnInfo: getEl('btn-info'),
+            modal: getEl('info-modal'),
+            closeModal: getEl('close-modal'),
+            closeModalBtn: getEl('close-modal-btn'),
+            // UI Toggle
+            btnToggleUi: getEl('btn-toggle-ui'),
+            textToggleUi: getEl('text-toggle-ui'),
+            mainWrapper: getEl('main-wrapper'),
+            zoomHint: getEl('zoom-hint'),
+            // Custom Color Picker
+            customColorBtn: getEl('btn-custom-color'),
+            customColorInput: getEl('input-custom-color')
+        };
+
+        // --- Core Wave Math ---
+        function getVibration(nx, ny, m, n, k) {
+            // Coordinate transformation shifted to centre
+            const piX = nx * Math.PI;
+            const piY = ny * Math.PI;
+
+            // Square plate standing wave approximation
+            const v1 = Math.cos(n * piX) * Math.cos(m * piY);
+            const v2 = Math.cos(m * piX) * Math.cos(n * piY);
+            
+            return v1 + (k * v2);
+        }
+
+        // --- 2D Renderer Engine ---
+        const ctx2d = ui.canvas2d ? ui.canvas2d.getContext('2d', { alpha: false }) : null;
+        let particles2d = [];
+
+        class Particle2D {
+            constructor() { 
+                this.reset(); 
+            }
+            reset() {
+                this.x = Math.random();
+                this.y = Math.random();
+                this.hue = Math.random() * 360;
+            }
+            update() {
+                const nx = (this.x * 2) - 1;
+                const ny = (this.y * 2) - 1;
+
+                const val = getVibration(nx, ny, state.m, state.n, state.k);
+                const amp = Math.abs(val);
+                
+                const jumpForce = amp * (state.speed * 0.00065); 
+
+                if (jumpForce > 0.00008) {
+                    this.x += (Math.random() - 0.5) * jumpForce;
+                    this.y += (Math.random() - 0.5) * jumpForce;
+                    
+                    // Box bounds collision
+                    if (this.x < 0) this.x = 0; if (this.x > 1) this.x = 1;
+                    if (this.y < 0) this.y = 0; if (this.y > 1) this.y = 1;
+                }
+            }
+        }
+
+        function init2D() {
+            particles2d = [];
+            for (let i = 0; i < state.particleCount; i++) {
+                particles2d.push(new Particle2D());
+            }
+        }
+
+        function draw2D() {
+            if (state.mode !== '2d' || !ctx2d) return;
+
+            if (state.enableTrails) {
+                ctx2d.fillStyle = 'rgba(9, 13, 22, 0.08)'; 
+                ctx2d.fillRect(0, 0, state.width, state.height);
+            } else {
+                ctx2d.fillStyle = '#090d16'; 
+                ctx2d.fillRect(0, 0, state.width, state.height);
+            }
+            
+            const w = state.width;
+            const h = state.height;
+
+            // Draw plate bounds applying Zoom and Panning
+            ctx2d.strokeStyle = 'rgba(6, 182, 212, 0.2)';
+            ctx2d.lineWidth = 1.5;
+            ctx2d.strokeRect(state.pan2D.x, state.pan2D.y, w * state.zoom2D, h * state.zoom2D);
+
+            if (state.sandColor === 'rainbow') {
+                for (let i = 0; i < particles2d.length; i++) {
+                    const p = particles2d[i];
+                    p.update();
+                    ctx2d.fillStyle = `hsl(${p.hue}, 80%, 60%)`;
+                    const px = (p.x * w) * state.zoom2D + state.pan2D.x;
+                    const py = (p.y * h) * state.zoom2D + state.pan2D.y;
+                    ctx2d.fillRect(px, py, 1.5, 1.5);
+                }
+            } else {
+                ctx2d.fillStyle = state.sandColor;
+                ctx2d.beginPath();
+                for (let i = 0; i < particles2d.length; i++) {
+                    const p = particles2d[i];
+                    p.update();
+                    const px = (p.x * w) * state.zoom2D + state.pan2D.x;
+                    const py = (p.y * h) * state.zoom2D + state.pan2D.y;
+                    ctx2d.rect(px, py, 1.5, 1.5);
+                }
+                ctx2d.fill();
+            }
+
+            requestAnimationFrame(draw2D);
+        }
+
+        // --- 3D Renderer Engine (Three.js) ---
+        let scene, camera, renderer, controls, plateMesh, particlesSystem;
+        let particlesData = [];
+
+        function init3D() {
+            if (state.is3dInitialized) return;
+            if (typeof THREE === 'undefined' || !ui.container3d) return;
+
+            try {
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x090d16);
+                scene.fog = new THREE.FogExp2(0x090d16, 0.04);
+
+                camera = new THREE.PerspectiveCamera(55, state.width / state.height, 0.1, 100);
+                camera.position.set(0, -3.2, 2.6);
+                camera.up.set(0, 0, 1);
+                camera.lookAt(0, 0, 0);
+
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+                renderer.setSize(state.width, state.height);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                ui.container3d.appendChild(renderer.domElement);
+
+                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+                controls.maxPolarAngle = Math.PI / 2 - 0.05;
+
+                // Deforming wireframe plate
+                const geo = new THREE.PlaneGeometry(4, 4, 110, 110);
+                const mat = new THREE.MeshBasicMaterial({ 
+                    color: 0x06b6d4, 
+                    wireframe: true, 
+                    transparent: true, 
+                    opacity: 0.12,
+                    side: THREE.DoubleSide
+                });
+                plateMesh = new THREE.Mesh(geo, mat);
+                scene.add(plateMesh);
+
+                // 3D Particles
+                const pGeo = new THREE.BufferGeometry();
+                const pPos = new Float32Array(state.particleCount * 3);
+                pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+                
+                const pMat = new THREE.PointsMaterial({ 
+                    color: 0xfde047, 
+                    size: 0.04, 
+                    transparent: true, 
+                    opacity: 0.85 
+                });
+                particlesSystem = new THREE.Points(pGeo, pMat);
+                scene.add(particlesSystem);
+
+                initParticles3D();
+                
+                state.is3dInitialized = true;
+                animate3D();
+
+            } catch (e) {
+                console.error("Three.js Init Fallback:", e);
+                setMode('2d');
+            }
+        }
+
+        // --- Empty placeholder to avoid runtime issues ---
+        function updateSimulationParams() {
+            // No longer used as frequency calculation has been completely removed.
+        }
+
+        function initParticles3D() {
+            particlesData = [];
+            for (let i = 0; i < state.particleCount; i++) {
+                particlesData.push({
+                    x: (Math.random() - 0.5) * 4,
+                    y: (Math.random() - 0.5) * 4,
+                    z: 0,
+                    hue: Math.random() * 360
+                });
+            }
+        }
+
+        let timeOffset = 0;
+        function animate3D() {
+            if (state.mode !== '3d') return;
+            requestAnimationFrame(animate3D);
+
+            timeOffset += 0.015 * state.oscSpeed;
+
+            if (particlesSystem) {
+                if (state.sandColor === 'rainbow') {
+                    particlesSystem.material.color.setHex(0xffffff);
+                } else {
+                    particlesSystem.material.color.set(state.sandColor);
+                }
+            }
+
+            // Deform Plate Wireframe mesh
+            if (plateMesh) {
+                const positions = plateMesh.geometry.attributes.position;
+                for (let i = 0; i < positions.count; i++) {
+                    const x = positions.getX(i);
+                    const y = positions.getY(i);
+                    
+                    const nx = x / 2;
+                    const ny = y / 2;
+                    
+                    const vib = getVibration(nx, ny, state.m, state.n, state.k);
+                    const z = vib * 0.22 * Math.sin(timeOffset * 5);
+                    positions.setZ(i, z);
+                }
+                positions.needsUpdate = true;
+            }
+
+            // Sand particle Physics simulation in 3D
+            if (particlesSystem) {
+                const pArr = particlesSystem.geometry.attributes.position.array;
+                for (let i = 0; i < state.particleCount; i++) {
+                    const p = particlesData[i];
+                    if (!p) continue;
+                    const nx = p.x / 2;
+                    const ny = p.y / 2;
+                    
+                    const vib = getVibration(nx, ny, state.m, state.n, state.k);
+                    const amp = Math.abs(vib);
+
+                    const jumpPower = amp * (state.speed * 0.0055);
+                    if (jumpPower > 0.01) {
+                         p.x += (Math.random() - 0.5) * jumpPower;
+                         p.y += (Math.random() - 0.5) * jumpPower;
+                         
+                         // Boundaries clamped in 3D
+                         if (p.x < -2) p.x = -2; if (p.x > 2) p.x = 2;
+                         if (p.y < -2) p.y = -2; if (p.y > 2) p.y = 2;
+                    }
+
+                    const currentZ = vib * 0.22 * Math.sin(timeOffset * 5);
+                    p.z = currentZ + (Math.random() * jumpPower * 0.35);
+
+                    pArr[i*3] = p.x;
+                    pArr[i*3+1] = p.y;
+                    pArr[i*3+2] = p.z;
+                }
+                particlesSystem.geometry.attributes.position.needsUpdate = true;
+            }
+            
+            if (controls) controls.update();
+            if (renderer && scene && camera) renderer.render(scene, camera);
+        }
+
+        // --- Interaction & Event Handlers ---
+        
+        function resize() {
+            if (!ui.canvasArea) return;
+            const rect = ui.canvasArea.getBoundingClientRect();
+            state.width = rect.width;
+            state.height = rect.height;
+
+            if (ui.canvas2d) {
+                ui.canvas2d.width = state.width;
+                ui.canvas2d.height = state.height;
+            }
+
+            if (renderer) {
+                renderer.setSize(state.width, state.height);
+                camera.aspect = state.width / state.height;
+                camera.updateProjectionMatrix();
+            }
+        }
+
+        function setMode(newMode) {
+            state.mode = newMode;
+            if (newMode === '2d') {
+                if (ui.btn2d) ui.btn2d.classList.add('active');
+                if (ui.btn3d) ui.btn3d.classList.remove('active');
+                if (ui.canvas2d) ui.canvas2d.style.display = 'block';
+                if (ui.container3d) ui.container3d.classList.add('hidden');
+                if (ui.panel3d) ui.panel3d.classList.add('opacity-50', 'pointer-events-none');
+                if (ui.zoomHint) ui.zoomHint.classList.remove('hidden');
+                draw2D();
+            } else {
+                if (ui.btn2d) ui.btn2d.classList.remove('active');
+                if (ui.btn3d) ui.btn3d.classList.add('active');
+                if (ui.canvas2d) ui.canvas2d.style.display = 'none';
+                if (ui.container3d) ui.container3d.classList.remove('hidden');
+                if (ui.panel3d) ui.panel3d.classList.remove('opacity-50', 'pointer-events-none');
+                if (ui.zoomHint) ui.zoomHint.classList.add('hidden');
+                init3D();
+                animate3D();
+            }
+        }
+
+        // Zoom and Panning on 2D Screen
+        if (ui.canvas2d) {
+            let isDragging2D = false;
+            let startDrag = { x: 0, y: 0 };
+
+            ui.canvas2d.addEventListener('wheel', (e) => {
+                if (state.mode !== '2d') return;
+                e.preventDefault();
+
+                const zoomFactor = 1.08;
+                const rect = ui.canvas2d.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                const oldZoom = state.zoom2D;
+                if (e.deltaY < 0) {
+                    state.zoom2D *= zoomFactor;
+                } else {
+                    state.zoom2D /= zoomFactor;
+                }
+                
+                state.zoom2D = Math.max(0.5, Math.min(15, state.zoom2D));
+
+                state.pan2D.x = mouseX - (mouseX - state.pan2D.x) * (state.zoom2D / oldZoom);
+                state.pan2D.y = mouseY - (mouseY - state.pan2D.y) * (state.zoom2D / oldZoom);
+            });
+
+            ui.canvas2d.addEventListener('mousedown', (e) => {
+                if (state.mode !== '2d') return;
+                isDragging2D = true;
+                startDrag.x = e.clientX - state.pan2D.x;
+                startDrag.y = e.clientY - startDrag.y;
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging2D || state.mode !== '2d') return;
+                state.pan2D.x = e.clientX - startDrag.x;
+                state.pan2D.y = e.clientY - startDrag.y;
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging2D = false;
+            });
+
+            ui.canvas2d.addEventListener('dblclick', () => {
+                if (state.mode !== '2d') return;
+                state.zoom2D = 1.0;
+                state.pan2D.x = 0;
+                state.pan2D.y = 0;
+            });
+        }
+
+        // UI Slider Listeners
+        if (ui.n) {
+            ui.n.oninput = (e) => { 
+                state.n = parseFloat(e.target.value); 
+                if (ui.valN) ui.valN.textContent = state.n.toFixed(1); 
+                updateSimulationParams();
+            };
+        }
+        
+        if (ui.m) {
+            ui.m.oninput = (e) => { 
+                state.m = parseFloat(e.target.value); 
+                if (ui.valM) ui.valM.textContent = state.m.toFixed(1); 
+                updateSimulationParams();
+            };
+        }
+        
+        if (ui.k) {
+            ui.k.oninput = (e) => {
+                state.k = parseFloat(e.target.value);
+                if (ui.valK) ui.valK.textContent = state.k.toFixed(2);
+                updateSimulationParams();
+            };
+        }
+
+        if (ui.speed) {
+            ui.speed.oninput = (e) => { 
+                state.speed = parseInt(e.target.value); 
+                if (ui.valSpeed) {
+                    let label = "Medium";
+                    if (state.speed < 10) label = "Low";
+                    else if (state.speed > 28) label = "Extreme";
+                    else if (state.speed > 18) label = "High";
+                    ui.valSpeed.textContent = `${label} (${state.speed})`;
+                }
+            };
+            ui.speed.dispatchEvent(new Event('input'));
+        }
+        
+        if (ui.oscSpeed) {
+            ui.oscSpeed.oninput = (e) => {
+                state.oscSpeed = parseFloat(e.target.value);
+                if (ui.valOscSpeed) {
+                    let rateLabel = state.oscSpeed.toFixed(2) + 'x';
+                    if (state.oscSpeed === 0) rateLabel = "Paused";
+                    ui.valOscSpeed.textContent = rateLabel;
+                }
+            };
+            ui.oscSpeed.dispatchEvent(new Event('input'));
+        }
+
+        if (ui.count) {
+            ui.count.oninput = (e) => {
+                state.particleCount = parseInt(e.target.value);
+                if (ui.valCount) ui.valCount.textContent = state.particleCount.toLocaleString();
+                
+                init2D();
+                if (state.is3dInitialized && scene && particlesSystem) {
+                    scene.remove(particlesSystem);
+                    const pGeo = new THREE.BufferGeometry();
+                    const pPos = new Float32Array(state.particleCount * 3);
+                    pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+                    
+                    const pMat = new THREE.PointsMaterial({ color: 0xfde047, size: 0.04, transparent: true, opacity: 0.85 });
+                    particlesSystem = new THREE.Points(pGeo, pMat);
+                    scene.add(particlesSystem);
+                    initParticles3D();
+                }
+            };
+        }
+
+        if (ui.checkTrails) {
+            ui.checkTrails.onchange = (e) => {
+                state.enableTrails = e.target.checked;
+            };
+        }
+
+        // Color buttons and custom picker
+        const colorButtons = document.querySelectorAll('.color-dot');
+        colorButtons.forEach(btn => {
+            btn.onclick = () => {
+                colorButtons.forEach(b => b.classList.remove('ring-4', 'ring-cyan-400'));
+                if (ui.customColorBtn) ui.customColorBtn.classList.remove('ring-4', 'ring-cyan-400');
+                btn.classList.add('ring-4', 'ring-cyan-400');
+                state.sandColor = btn.dataset.color;
+            };
+        });
+        if (colorButtons.length > 0) {
+            colorButtons[0].classList.add('ring-4', 'ring-cyan-400');
+        }
+
+        if (ui.customColorBtn && ui.customColorInput) {
+            ui.customColorBtn.onclick = () => {
+                ui.customColorInput.click();
+            };
+
+            ui.customColorInput.oninput = (e) => {
+                colorButtons.forEach(b => b.classList.remove('ring-4', 'ring-cyan-400'));
+                ui.customColorBtn.classList.add('ring-4', 'ring-cyan-400');
+                state.sandColor = e.target.value;
+                ui.customColorBtn.style.background = e.target.value;
+            };
+        }
+
+        if (ui.btn2d) ui.btn2d.onclick = () => setMode('2d');
+        if (ui.btn3d) ui.btn3d.onclick = () => setMode('3d');
+        
+        if (ui.resetBtn) {
+            ui.resetBtn.onclick = () => { 
+                init2D(); 
+                if (state.is3dInitialized) initParticles3D(); 
+            };
+        }
+
+        // Toggle overall UI Visibility (Cinematic mode)
+        let uiVisible = true;
+        if (ui.btnToggleUi) {
+            ui.btnToggleUi.onclick = () => {
+                uiVisible = !uiVisible;
+                if (uiVisible) {
+                    ui.mainWrapper.classList.remove('sidebar-hidden');
+                    ui.textToggleUi.innerText = "Hide UI";
+                    ui.btnToggleUi.classList.remove('border-cyan-500/50', 'bg-slate-800');
+                } else {
+                    ui.mainWrapper.classList.add('sidebar-hidden');
+                    ui.textToggleUi.innerText = "Show UI";
+                    ui.btnToggleUi.classList.add('border-cyan-500/50', 'bg-slate-800');
+                }
+                setTimeout(resize, 450);
+            };
+        }
+
+        // Mobile drawer toggles
+        function toggleSidebar(open) {
+            if (!ui.sidebar) return;
+            if (open) ui.sidebar.classList.add('open');
+            else ui.sidebar.classList.remove('open');
+        }
+        if (ui.toggleSidebar) ui.toggleSidebar.onclick = () => toggleSidebar(true);
+        if (ui.closeSidebar) ui.closeSidebar.onclick = () => toggleSidebar(false);
+
+        // Help manual toggles
+        if (ui.btnInfo) ui.btnInfo.onclick = () => { if (ui.modal) ui.modal.classList.remove('hidden'); };
+        if (ui.closeModal) ui.closeModal.onclick = () => { if (ui.modal) ui.modal.classList.add('hidden'); };
+        if (ui.closeModalBtn) ui.closeModalBtn.onclick = () => { if (ui.modal) ui.modal.classList.add('hidden'); };
+
+        // --- Safe initialization ---
+        function initApp() {
+            updateSimulationParams();
+            resize();
+            init2D();
+            draw2D();
+        }
+
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            setTimeout(initApp, 80);
+        } else {
+            document.addEventListener('DOMContentLoaded', () => setTimeout(initApp, 80));
+        }
+
+        window.addEventListener('resize', resize);
+
+    </script>
+</body>
+</html>
