@@ -426,12 +426,14 @@ class DNA {
     for (let i = 0; i < 4; i++) {
       mDNA.angleGenes[i] = constrain(mDNA.angleGenes[i] + random(-0.1, 0.1), 0.05, 1.5);
     }
+    // MUTACIÓN DE COLOR BASE (Variabilidad entre individuos)
     mDNA.r = constrain(mDNA.r + random(-25, 25), 40, 255);
     mDNA.g = constrain(mDNA.g + random(-25, 25), 40, 255);
     mDNA.b = constrain(mDNA.b + random(-25, 25), 40, 255);
-    mDNA.incrR = constrain(mDNA.incrR + random(-5, 5), -60, 60);
-    mDNA.incrG = constrain(mDNA.incrG + random(-5, 5), -60, 60);
-    mDNA.incrB = constrain(mDNA.incrB + random(-5, 5), -60, 60);
+    // MUTACIÓN DE INCREMENTO (Variabilidad en las ramas)
+    mDNA.incrR = constrain(mDNA.incrR + random(-5, 5), -100, 100);
+    mDNA.incrG = constrain(mDNA.incrG + random(-5, 5), -100, 100);
+    mDNA.incrB = constrain(mDNA.incrB + random(-5, 5), -100, 100);
     return mDNA;
   }
 }
