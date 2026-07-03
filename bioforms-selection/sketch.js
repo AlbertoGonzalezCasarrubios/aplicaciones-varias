@@ -427,9 +427,9 @@ class DNA {
       mDNA.angleGenes[i] = constrain(mDNA.angleGenes[i] + random(-0.1, 0.1), 0.05, 1.5);
     }
     // MUTACIÓN DE COLOR BASE (Variabilidad entre individuos)
-    mDNA.r = constrain(mDNA.r + random(-25, 25), 40, 255);
-    mDNA.g = constrain(mDNA.g + random(-25, 25), 40, 255);
-    mDNA.b = constrain(mDNA.b + random(-25, 25), 40, 255);
+    mDNA.r = constrain(mDNA.r + random(-40, 40), 40, 255);
+    mDNA.g = constrain(mDNA.g + random(-40, 40), 40, 255);
+    mDNA.b = constrain(mDNA.b + random(-40, 40), 40, 255);
     // MUTACIÓN DE INCREMENTO (Variabilidad en las ramas)
     mDNA.incrR = constrain(mDNA.incrR + random(-5, 5), -100, 100);
     mDNA.incrG = constrain(mDNA.incrG + random(-5, 5), -100, 100);
