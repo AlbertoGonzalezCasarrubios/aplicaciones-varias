@@ -1,7 +1,7 @@
 # aplicaciones-varias
-Aplicaciones que se me ocurre hacer para visualizar algo o como prueba de concepto (son malas y muchas están incompletas).
+Aplicaciones que se me ocurre hacer para visualizar algo o como prueba de concepto (son malas y muchas están incompletas, las he hecho vibecodeando o no se han hecho tests o comprobado la veracidad de los resultados, así que utilizarlas bajo responsabilidad individual).
 
-Casi siempre son simulaciones de conceptos bien establecidos (máquinas térmicas, orbitales atómicos, etc.) hechas en HTML para que se puedan ejecutar en un navegador y no haga falta instalar nada. 
+Casi siempre son simulaciones de conceptos bien establecidos hechas en HTML o en js para que se puedan ejecutar en un navegador y no haga falta instalar nada. 
 
 Espero que le sea útil a alguien.
 
