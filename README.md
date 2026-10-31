@@ -11,3 +11,4 @@ Espero que le sea útil a alguien.
 * **Chladni Simulator:** https://albertogonzalezcasarrubios.github.io/aplicaciones-varias/chaldni-simulator
 * **Campanadas R/V SONNE:** https://albertogonzalezcasarrubios.github.io/aplicaciones-varias/nochevieja-SONNE
 * **Bioforms Evolution Simulator** https://albertogonzalezcasarrubios.github.io/aplicaciones-varias/bioforms-selection
+* **Theoretical Shell Morphology (Raup):** https://albertogonzalezcasarrubios.github.io/aplicaciones-varias/shells-morphology
