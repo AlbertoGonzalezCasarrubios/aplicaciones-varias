@@ -6,8 +6,12 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import { buildShell } from './raup.js';
-import { PRESETS, DEFAULT_PRESET } from './presets.js';
-import { setLang, getLang, t, tParam, tPreset, applyStatic, GENERAL_TEX, DEFS_TEX, MIRROR_TEX } from './i18n.js';
+import { PRESETS, DEFAULT_PRESET, PATTERN_PRESETS, DEFAULT_PATTERN, MODEL_REFERENCE } from './presets.js';
+import { simulatePattern, PROFILE_WIDTH } from './meinhardt.js';
+import {
+  setLang, getLang, t, tParam, tPreset, tPattern, applyStatic,
+  GENERAL_TEX, DEFS_TEX, MIRROR_TEX, AI_TEX, AS_TEX, GLOBAL_TEX,
+} from './i18n.js';
 
 // ---------------------------------------------------------------------------
 // Definición de controles (los textos están en i18n.js)
@@ -85,6 +89,7 @@ function writeHash() {
     for (const [short, key] of Object.entries(HASH_KEYS)) q.set(short, String(+Number(state[key]).toFixed(3)));
     q.set('v', state.mirror ? '1' : '0');
     q.set('m', state.mode);
+    patternHash(q);
     history.replaceState(null, '', `#${q}`);
   }, 250);
 }
@@ -184,16 +189,35 @@ const lineMat = new LineMaterial({
 
 const axisMat = new THREE.LineDashedMaterial({ color: 0x2a9d8f, dashSize: 0.12, gapSize: 0.08 });
 
+solidMat.side = THREE.FrontSide; // exterior (las caras frontales miran hacia fuera)
+
+// Interior de la concha: sin pigmento y con un ligero brillo nacarado
+const innerMat = new THREE.MeshPhysicalMaterial({
+  color: '#f3eee6',
+  roughness: 0.28,
+  metalness: 0,
+  envMapIntensity: 0.8,
+  iridescence: 0.35,
+  iridescenceIOR: 1.3,
+  iridescenceThicknessRange: [250, 500],
+  side: THREE.BackSide,
+  polygonOffset: true,
+  polygonOffsetFactor: 1,
+  polygonOffsetUnits: 1,
+});
+
 const solid = new THREE.Mesh(new THREE.BufferGeometry(), solidMat);
 solid.castShadow = true;
 solid.receiveShadow = true;
+const inner = new THREE.Mesh(solid.geometry, innerMat);
+inner.receiveShadow = true;
 const occluder = new THREE.Mesh(solid.geometry, occluderMat);
 occluder.renderOrder = 0;
 const lines = new LineSegments2(new LineSegmentsGeometry(), lineMat);
 lines.renderOrder = 1;
 const axis = new THREE.Line(new THREE.BufferGeometry(), axisMat);
 axis.visible = false;
-scene.add(solid, occluder, lines, axis);
+scene.add(solid, inner, occluder, lines, axis);
 
 // ---------------------------------------------------------------------------
 // Indicador de ejes x, y, z (sistema de la ecuación: z = eje de enrollamiento)
@@ -268,8 +292,10 @@ function rebuild() {
   const meshGeo = new THREE.BufferGeometry();
   meshGeo.setAttribute('position', position);
   meshGeo.setAttribute('color', new THREE.BufferAttribute(shell.colors, 3));
+  meshGeo.setAttribute('uv', new THREE.BufferAttribute(shell.uvs, 2));
   meshGeo.setIndex(new THREE.BufferAttribute(shell.indices, 1));
   meshGeo.computeVertexNormals();
+  fixSeamNormals(meshGeo.attributes.normal.array, shell.grid);
   meshGeo.computeBoundingSphere();
 
   // LineSegmentsGeometry necesita pares de puntos explícitos
@@ -289,6 +315,7 @@ function rebuild() {
   lines.geometry.dispose();
   solid.geometry = meshGeo;
   occluder.geometry = meshGeo;
+  inner.geometry = meshGeo;
   lines.geometry = lineGeo;
 
   const { x, z, yTop, yBottom } = shell.axis;
@@ -305,6 +332,22 @@ function rebuild() {
   writeHash();
   scheduleFormula();
   drawMorpho();
+  onGeometryForPattern();
+}
+
+/** La costura de la apertura tiene vértices duplicados: se promedian sus normales para que no se vea. */
+function fixSeamNormals(n, { rows, cols, copies, count }) {
+  for (let c = 0; c < copies; c++) {
+    for (let r = 0; r < rows; r++) {
+      const i0 = (c * count + r * cols) * 3;
+      const i1 = i0 + (cols - 1) * 3;
+      const x = n[i0] + n[i1], y = n[i0 + 1] + n[i1 + 1], z = n[i0 + 2] + n[i1 + 2];
+      const len = Math.hypot(x, y, z) || 1;
+      n[i0] = n[i1] = x / len;
+      n[i0 + 1] = n[i1 + 1] = y / len;
+      n[i0 + 2] = n[i1 + 2] = z / len;
+    }
+  }
 }
 
 function updateHud() {
@@ -314,6 +357,7 @@ function updateHud() {
 function applyMode() {
   const m = state.mode;
   solid.visible = m !== 'lines';
+  inner.visible = solid.visible;
   lines.visible = m !== 'solid' && lines.geometry.attributes.instanceStart !== undefined;
   occluder.visible = m === 'lines' && $('hideHidden').checked;
   ground.visible = m !== 'lines';
@@ -353,12 +397,49 @@ function typeset(el, html) {
 }
 
 const f = (v, d) => Number(v).toFixed(d);
+/** Dos cifras significativas: para constantes que abarcan varios órdenes de magnitud. */
+const sig = (v) => (v === 0 ? '0' : v >= 100 ? v.toFixed(0) : String(+Number(v).toPrecision(2)));
+
+let formulaView = 'raup';
+
+const SOURCE_TEX = String.raw`\[ s_i = r_a\,(1 + \sigma\,\xi_i),\quad \xi_i \in [-1,\,1],\quad x = 1,\dots,N \]`;
 
 function generalTeX() {
+  if (formulaView === 'meinhardt') {
+    const isAS = pattern.model === 'AS';
+    return (isAS ? AS_TEX : AI_TEX) + (isAS && pattern.globalCtl > 0 ? GLOBAL_TEX : '') + SOURCE_TEX;
+  }
   return GENERAL_TEX + DEFS_TEX + (state.mirror ? MIRROR_TEX : '');
 }
 
+function meinhardtLiveTeX() {
+  const { model, Da, D2, ra, r2, kappa, ba, b2, noise, globalCtl, T } = pattern;
+  // Términos opcionales: se omiten cuando su coeficiente es 0
+  const term = (sign, c, tex) => (c > 0 ? ` ${sign} ${sig(c)}${tex ? String.raw`\,${tex}` : ''}` : '');
+  const lap = (v) => String.raw`\frac{\partial^2 ${v}}{\partial x^2}`;
+  const sat = kappa > 0 ? String.raw`(1+${sig(kappa)}\,a^2)` : '';
+  const basal = term('+', ba, '');
+  let eqs;
+  if (model === 'AS') {
+    const prod = String.raw`s\,b\left(\frac{a^2}{${sat || '1'}}${basal}\right)`;
+    eqs = String.raw`\begin{aligned}
+      \frac{\partial a}{\partial t} &= ${prod} - ${sig(ra)}\,a${term('+', Da, lap('a'))} \\
+      \frac{\partial b}{\partial t} &= ${sig(b2)} - ${prod}${term('-', r2, 'b')}${term('+', D2, lap('b'))}
+    \end{aligned}`;
+  } else {
+    eqs = String.raw`\begin{aligned}
+      \frac{\partial a}{\partial t} &= s\left(\frac{a^2}{h${sat ? String.raw`\,${sat}` : ''}}${basal}\right) - ${sig(ra)}\,a${term('+', Da, lap('a'))} \\
+      \frac{\partial h}{\partial t} &= s\,a^2 - ${sig(r2)}\,h${term('+', D2, lap('h'))}${term('+', b2, '')}
+    \end{aligned}`;
+  }
+  const global = model === 'AS' && globalCtl > 0 ? String.raw`\[ b_a^{\mathrm{ef}} = ${sig(ba)} + \frac{${sig(globalCtl)}}{1 + 40\,c} \]` : '';
+  const cells = Math.round(PATTERN_CELLS / pattern.size);
+  return String.raw`\[ ${eqs} \]` + global +
+    String.raw`\[ s_i = ${sig(ra)}\,(1 \pm ${sig(noise)}),\quad N = ${cells},\quad T = ${Math.round(T)} \]`;
+}
+
 function liveTeX() {
+  if (formulaView === 'meinhardt') return meinhardtLiveTeX();
   const { W, D, T, S, hand, turns } = state;
   const { rc, a, b } = lastBuild.derived;
   const R = `(${f(rc, 3)} + ${f(a, 3)}\\cos\\varphi)`;
@@ -388,21 +469,50 @@ function scheduleFormula() {
   }, 80);
 }
 
-function setFormulaOpen(open) {
-  formulaPanel.hidden = !open;
-  $('toggleFormula').setAttribute('aria-pressed', String(open));
-  if (open) {
+function setFormulaView(view) {
+  formulaView = view;
+  document.querySelectorAll('#eqView [data-eq]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.eq === view)));
+  const note = $('eqNote');
+  note.dataset.i18n = view === 'meinhardt' ? 'eq.mein.note' : 'eq.chirality';
+  note.textContent = t(note.dataset.i18n);
+  if (!formulaPanel.hidden) {
+    typeset(note);
     lastGeneral = '';
-    typeset(formulaPanel.querySelector('[data-i18n="eq.chirality"]'));
     scheduleFormula();
   }
 }
 
-function openInfo() {
-  if (!infoBody.dataset.typeset) {
-    infoBody.dataset.typeset = '1';
-    typeset(infoBody);
+function setFormulaOpen(open) {
+  formulaPanel.hidden = !open;
+  $('toggleFormula').setAttribute('aria-pressed', String(open));
+  if (open) {
+    // Desde la pestaña de pigmento se abren directamente las ecuaciones de Meinhardt
+    setFormulaView($('tab-pigment').hidden ? formulaView : 'meinhardt');
   }
+}
+
+let infoPage = 'raup';
+
+function showInfoPage(page) {
+  infoPage = page;
+  document.querySelectorAll('.info-tabs [data-page]').forEach((b) => {
+    const on = b.dataset.page === page;
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;
+  });
+  infoBody.querySelectorAll('.info-page').forEach((el) => {
+    el.hidden = el.dataset.page !== page;
+    // Cada página se compone con MathJax la primera vez que se muestra
+    if (!el.hidden && !el.dataset.typeset) {
+      el.dataset.typeset = '1';
+      typeset(el);
+    }
+  });
+  infoBody.scrollTop = 0;
+}
+
+function openInfo(page = infoPage) {
+  showInfoPage(page);
   if (!infoDialog.open) infoDialog.showModal();
 }
 
@@ -418,10 +528,11 @@ function setFill(range) {
   range.style.setProperty('--pct', `${pct}%`);
 }
 
-function createParam(def, container, { compact = false, onChange }) {
+function createParam(def, container, { compact = false, onChange, target = state }) {
   const el = document.createElement('div');
   el.className = 'param' + (compact ? ' compact' : '');
-  const id = `p-${def.key}`;
+  const ctlId = def.id ?? def.key;
+  const id = `p-${ctlId}`;
   const toggle = def.logToggle
     ? `<span class="scale-toggle" role="group">
          <button type="button" data-scale="lin">Lin</button><button type="button" data-scale="log">Log</button>
@@ -429,7 +540,7 @@ function createParam(def, container, { compact = false, onChange }) {
     : '';
   el.innerHTML = `
     <div class="param-head">
-      ${def.sym ? `<span class="param-sym">${def.sym}</span>` : ''}
+      ${def.sym ? '<span class="param-sym"></span>' : ''}
       <label class="param-name" for="${id}"><strong></strong><small></small></label>
       <input class="num" type="number" min="${def.min}" max="${def.max}" step="${def.logToggle ? 'any' : def.step}" />
     </div>
@@ -443,8 +554,9 @@ function createParam(def, container, { compact = false, onChange }) {
   const nameEl = el.querySelector('strong');
   const descEl = el.querySelector('small');
   const scaleGroup = el.querySelector('.scale-toggle');
+  const symEl = el.querySelector('.param-sym');
   const format = def.format || ((v) => f(v, def.digits));
-  let logScale = false;
+  let logScale = !!def.log;
 
   const applyScale = () => {
     const max = def.logToggle && !logScale ? def.linMax : def.max;
@@ -460,15 +572,21 @@ function createParam(def, container, { compact = false, onChange }) {
     );
   };
 
-  const set = (v, { fromNum = false } = {}) => {
-    const clamped = Math.min(def.max, Math.max(def.min, v));
-    state[def.key] = clamped;
+  const set = (v, { fromNum = false, fitScale = false } = {}) => {
+    // def.zero: por debajo del mínimo el valor es exactamente 0 (p. ej. sin difusión)
+    const clamped = def.zero && v < def.min ? 0 : Math.min(def.max, Math.max(def.min, v));
+    target[def.key] = clamped;
+    // Al cargar un preset, se vuelve a la escala lineal si el valor cabe en ella
+    if (fitScale && def.logToggle && logScale && clamped <= def.linMax) {
+      logScale = false;
+      applyScale();
+    }
     // Un valor fuera del rango lineal (p. ej. un bivalvo) pasa a escala logarítmica
     if (def.logToggle && !logScale && clamped > def.linMax) {
       logScale = true;
       applyScale();
     }
-    range.value = logScale ? Math.log10(clamped) : clamped;
+    range.value = logScale ? Math.log10(Math.max(clamped, def.min)) : clamped;
     setFill(range);
     if (!fromNum) num.value = format(clamped);
   };
@@ -479,18 +597,23 @@ function createParam(def, container, { compact = false, onChange }) {
       if (wantLog === logScale) return;
       logScale = wantLog;
       applyScale();
-      if (!logScale && state[def.key] > def.linMax) {
+      if (!logScale && target[def.key] > def.linMax) {
         set(def.linMax);
         onChange(def.key);
       } else {
-        set(state[def.key]);
+        set(target[def.key]);
       }
     })
   );
 
   range.addEventListener('input', () => {
     const r = parseFloat(range.value);
-    set(logScale ? 10 ** r : r);
+    if (def.zero && r <= parseFloat(range.min) + 1e-9) set(0);
+    else if (logScale) {
+      // Se redondea a lo que se muestra, para que el valor visible sea el real
+      const v = 10 ** r;
+      set(def.digits !== undefined ? +v.toFixed(def.digits) : +v.toPrecision(2));
+    } else set(r);
     onChange(def.key);
   });
   num.addEventListener('input', () => {
@@ -499,10 +622,12 @@ function createParam(def, container, { compact = false, onChange }) {
     set(v, { fromNum: true });
     onChange(def.key);
   });
-  num.addEventListener('change', () => set(state[def.key]));
+  num.addEventListener('change', () => set(target[def.key]));
 
+  // El símbolo y el nombre pueden depender del modelo (p. ej. D_h o D_b)
   const relabel = () => {
-    const tr = tParam(def.key);
+    if (symEl) symEl.innerHTML = typeof def.sym === 'function' ? def.sym() : def.sym;
+    const tr = tParam(typeof def.i18n === 'function' ? def.i18n() : def.i18n ?? def.key);
     nameEl.textContent = tr.name || def.key;
     descEl.textContent = tr.desc || '';
     descEl.hidden = !tr.desc;
@@ -515,8 +640,8 @@ function createParam(def, container, { compact = false, onChange }) {
   relabel();
   applyScale();
 
-  controlsByKey[def.key] = { set, relabel };
-  set(state[def.key]);
+  controlsByKey[ctlId] = { set, relabel, el };
+  set(target[def.key]);
 }
 
 function markCustom() {
@@ -577,7 +702,7 @@ presetSel.addEventListener('change', () => {
   const p = PRESETS[presetSel.value];
   if (!p) return;
   const shape = pickShape(p);
-  for (const k of ['W', 'D', 'T', 'S', 'turns']) controlsByKey[k].set(shape[k]);
+  for (const k of ['W', 'D', 'T', 'S', 'turns']) controlsByKey[k].set(shape[k], { fitScale: true });
   state.hand = shape.hand;
   $('hand').value = String(shape.hand);
   setMirror(shape.mirror);
@@ -611,7 +736,7 @@ document.querySelectorAll('#mode button').forEach((btn) =>
 );
 
 $('lineColor').addEventListener('input', (e) => lineMat.color.set(e.target.value));
-$('shellColor').addEventListener('input', (e) => solidMat.color.set(e.target.value));
+$('shellColor').addEventListener('input', applyShellMaterial);
 $('bgColor').addEventListener('input', (e) => scene.background.set(e.target.value));
 $('hideHidden').addEventListener('change', applyMode);
 document.querySelectorAll('[data-palette]').forEach((b) =>
@@ -619,20 +744,19 @@ document.querySelectorAll('[data-palette]').forEach((b) =>
     const p = PALETTES[b.dataset.palette];
     setPaletteInputs(p);
     lineMat.color.set(p.line);
-    solidMat.color.set(p.shell);
+    applyShellMaterial();
     scene.background.set(p.bg);
   })
 );
-$('bands').addEventListener('change', (e) => {
-  solidMat.vertexColors = e.target.checked;
-  solidMat.needsUpdate = true;
-});
+$('bands').addEventListener('change', applyShellMaterial);
 $('showAxis').addEventListener('change', (e) => (axis.visible = e.target.checked));
 $('autoRotate').addEventListener('change', (e) => (controls.autoRotate = e.target.checked));
 
 $('toggleFormula').addEventListener('click', () => setFormulaOpen(formulaPanel.hidden));
+document.querySelectorAll('#eqView [data-eq]').forEach((b) => b.addEventListener('click', () => setFormulaView(b.dataset.eq)));
 $('closeFormula').addEventListener('click', () => setFormulaOpen(false));
-$('openInfo').addEventListener('click', openInfo);
+$('openInfo').addEventListener('click', () => openInfo());
+document.querySelectorAll('.info-tabs [data-page]').forEach((b) => b.addEventListener('click', () => showInfoPage(b.dataset.page)));
 $('closeInfo').addEventListener('click', () => infoDialog.close());
 infoDialog.addEventListener('click', (e) => {
   if (e.target === infoDialog) infoDialog.close(); // clic en el fondo
@@ -947,6 +1071,550 @@ $('saveStl').addEventListener('click', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Pigmentación (modelos de reacción-difusión de Meinhardt)
+// ---------------------------------------------------------------------------
+
+const PATTERN_ROWS = 2048;   // filas del registro espacio-tiempo (ápice → apertura)
+const PATTERN_WIDTH = 1024;  // columnas de la textura (vuelta completa a la apertura)
+const PATTERN_CELLS = 256;   // células del borde en la apertura (tamaño ×1)
+// Semiancho del umbral de pigmentación: el pigmento se deposita donde el activador
+// supera un umbral, como en las simulaciones de Meinhardt, con bordes nítidos
+const PIGMENT_EDGE = 0.12;
+const THUMB = { rows: 144, width: 256 }; // las líneas de una célula no deben perderse al reducir
+
+const PATTERN_KEYS = ['model', 'Da', 'D2', 'ra', 'r2', 'kappa', 'ba', 'b2', 'noise', 'globalCtl', 'T', 'insertion', 'base', 'pigment', 'size', 'amount'];
+const PATTERN_DEFAULTS = { size: 1, amount: 0.5 };
+
+const pickPattern = (p) => Object.fromEntries(PATTERN_KEYS.map((k) => [k, p[k] ?? PATTERN_DEFAULTS[k]]));
+
+const pattern = { on: false, preset: DEFAULT_PATTERN, seed: 7, ...pickPattern(PATTERN_PRESETS[DEFAULT_PATTERN]) };
+let patternState = 'pattern'; // 'pattern' | 'uniform' | 'extinct'
+
+// Estado del patrón en la URL: pg=1 y los parámetros con prefijo p
+const PATTERN_HASH = { pm: 'model', pDa: 'Da', pD2: 'D2', pra: 'ra', pr2: 'r2', pk: 'kappa', pba: 'ba', pb2: 'b2', pn: 'noise', pgc: 'globalCtl', pT: 'T', ps: 'seed', pz: 'size', pa: 'amount' };
+if (fromHash.get('pg') === '1') {
+  pattern.on = true;
+  pattern.preset = PATTERN_PRESETS[fromHash.get('pp')] ? fromHash.get('pp') : 'custom';
+  for (const [short, key] of Object.entries(PATTERN_HASH)) {
+    if (!fromHash.has(short)) continue;
+    if (key === 'model') pattern.model = fromHash.get(short) === 'AS' ? 'AS' : 'AI';
+    else if (Number.isFinite(parseFloat(fromHash.get(short)))) pattern[key] = parseFloat(fromHash.get(short));
+  }
+  if (fromHash.has('pi')) pattern.insertion = fromHash.get('pi') === '1';
+  for (const [short, key] of [['pcb', 'base'], ['pcp', 'pigment']]) {
+    if (/^[0-9a-f]{6}$/i.test(fromHash.get(short) || '')) pattern[key] = `#${fromHash.get(short)}`;
+  }
+}
+
+function patternHash(q) {
+  q.set('pg', pattern.on ? '1' : '0');
+  if (!pattern.on) return;
+  q.set('pp', pattern.preset);
+  for (const [short, key] of Object.entries(PATTERN_HASH)) q.set(short, key === 'model' ? pattern.model : String(+Number(pattern[key]).toFixed(4)));
+  q.set('pi', pattern.insertion ? '1' : '0');
+  q.set('pcb', pattern.base.slice(1));
+  q.set('pcp', pattern.pigment.slice(1));
+}
+
+// Textura y lienzo con el registro espacio-tiempo (fila 0 = ápice, como v = 0 en la malla)
+const patternPixels = new Uint8Array(PATTERN_WIDTH * PATTERN_ROWS * 4);
+const patternTex = new THREE.DataTexture(patternPixels, PATTERN_WIDTH, PATTERN_ROWS, THREE.RGBAFormat);
+patternTex.colorSpace = THREE.SRGBColorSpace;
+patternTex.wrapS = THREE.RepeatWrapping;
+patternTex.wrapT = THREE.ClampToEdgeWrapping;
+patternTex.magFilter = THREE.LinearFilter;
+patternTex.minFilter = THREE.LinearMipmapLinearFilter;
+patternTex.generateMipmaps = true;
+patternTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+const patternCanvas = document.createElement('canvas');
+patternCanvas.width = PATTERN_WIDTH;
+patternCanvas.height = PATTERN_ROWS;
+const patternImage = new ImageData(new Uint8ClampedArray(patternPixels.buffer), PATTERN_WIDTH, PATTERN_ROWS);
+const spacetime = $('spacetime');
+
+let patternValues = null;
+let patternSecond = null; // inhibidor o sustrato (rows × PROFILE_WIDTH), relativo a su máximo
+let profileRow = null;    // instante elegido para el perfil (null = la apertura)
+const profileCanvas = $('profile');
+
+function hexRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/**
+ * Convierte el activador (0–1) en color: pigmento donde supera el umbral, con una
+ * transición corta (smoothstep) para que los bordes sean nítidos sin dientes.
+ * La cantidad de pigmento desplaza el umbral.
+ */
+function colorize(values, base, pigment, amount, out) {
+  const b = hexRgb(base);
+  const p = hexRgb(pigment);
+  const lo = 1 - amount - PIGMENT_EDGE;
+  const span = 2 * PIGMENT_EDGE;
+  for (let i = 0, k = 0; i < values.length; i++, k += 4) {
+    let x = (values[i] - lo) / span;
+    x = x < 0 ? 0 : x > 1 ? 1 : x;
+    const t = x * x * (3 - 2 * x);
+    out[k] = b[0] + (p[0] - b[0]) * t;
+    out[k + 1] = b[1] + (p[1] - b[1]) * t;
+    out[k + 2] = b[2] + (p[2] - b[2]) * t;
+    out[k + 3] = 255;
+  }
+}
+
+function paintPattern() {
+  if (!patternValues) return;
+  colorize(patternValues, pattern.base, pattern.pigment, pattern.amount, patternPixels);
+  patternTex.needsUpdate = true;
+  patternCanvas.getContext('2d').putImageData(patternImage, 0, 0);
+  drawSpacetime();
+  applyShellMaterial();
+  updatePatternMessage();
+}
+
+function drawSpacetime() {
+  const w = spacetime.clientWidth;
+  const h = spacetime.clientHeight;
+  if (!w || !h) return;
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  spacetime.width = Math.round(w * dpr);
+  spacetime.height = Math.round(h * dpr);
+  const ctx = spacetime.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  if (patternValues) ctx.drawImage(patternCanvas, 0, 0, spacetime.width, spacetime.height);
+  // En la vista avanzada se marca el instante del perfil
+  if (patternValues && $('tab-pigment').dataset.pmode === 'advanced') {
+    const row = profileRow ?? PATTERN_ROWS - 1;
+    const y = Math.min(spacetime.height - 1, ((row + 0.5) / PATTERN_ROWS) * spacetime.height);
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    ctx.lineWidth = 2 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(spacetime.width, y);
+    ctx.stroke();
+  }
+  drawProfile();
+}
+new ResizeObserver(drawSpacetime).observe(spacetime);
+
+/**
+ * Perfil a lo largo del borde en un instante: activador y segunda sustancia
+ * (inhibidor o sustrato), cada una relativa a su máximo, y el umbral de pigmento.
+ */
+function drawProfile() {
+  const w = profileCanvas.clientWidth;
+  const h = profileCanvas.clientHeight;
+  if (!w || !h) return;
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  profileCanvas.width = Math.round(w * dpr);
+  profileCanvas.height = Math.round(h * dpr);
+  const ctx = profileCanvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const row = profileRow ?? PATTERN_ROWS - 1;
+  $('profileTime').textContent = `${t('pig.profile.time')} ${Math.round((100 * row) / (PATTERN_ROWS - 1))} %`;
+  if (!patternValues || !patternSecond) return;
+
+  const css = getComputedStyle(document.documentElement);
+  const pad = 8;
+  const x = (k) => (k / (PROFILE_WIDTH - 1)) * w;
+  const y = (v) => pad + (1 - v) * (h - 2 * pad);
+  const aAt = (k) => patternValues[row * PATTERN_WIDTH + Math.floor((k / PROFILE_WIDTH) * PATTERN_WIDTH)];
+  const threshold = 1 - pattern.amount;
+
+  // Zona pigmentada: activador por encima del umbral
+  ctx.fillStyle = pattern.pigment;
+  ctx.globalAlpha = 0.22;
+  ctx.beginPath();
+  ctx.moveTo(0, y(threshold));
+  for (let k = 0; k < PROFILE_WIDTH; k++) ctx.lineTo(x(k), y(Math.max(threshold, aAt(k))));
+  ctx.lineTo(w, y(threshold));
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Umbral de pigmento
+  ctx.setLineDash([2, 3]);
+  ctx.strokeStyle = css.getPropertyValue('--muted').trim();
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(0, y(threshold));
+  ctx.lineTo(w, y(threshold));
+  ctx.stroke();
+
+  // Segunda sustancia (discontinua) y activador
+  const line = (get, color, width, dash) => {
+    ctx.setLineDash(dash);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    for (let k = 0; k < PROFILE_WIDTH; k++) ctx[k ? 'lineTo' : 'moveTo'](x(k), y(get(k)));
+    ctx.stroke();
+  };
+  line((k) => patternSecond[row * PROFILE_WIDTH + k], css.getPropertyValue('--accent').trim(), 1.6, [5, 3]);
+  line(aAt, pattern.pigment, 2, []);
+  ctx.setLineDash([]);
+}
+new ResizeObserver(drawProfile).observe(profileCanvas);
+
+// Elegir el instante del perfil sobre el registro espacio-tiempo (vista avanzada)
+function pickProfileRow(e) {
+  if ($('tab-pigment').dataset.pmode !== 'advanced' || !patternValues) return;
+  const r = spacetime.getBoundingClientRect();
+  const f = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+  profileRow = Math.round(f * (PATTERN_ROWS - 1));
+  drawSpacetime();
+}
+spacetime.addEventListener('pointerdown', (e) => {
+  spacetime.setPointerCapture(e.pointerId);
+  pickProfileRow(e);
+});
+spacetime.addEventListener('pointermove', (e) => {
+  if (spacetime.hasPointerCapture(e.pointerId)) pickProfileRow(e);
+});
+
+/** Si con los valores actuales no se forma patrón, se explica en lugar de mostrar un blanco mudo. */
+function updatePatternMessage() {
+  const msg = $('patternMsg');
+  msg.hidden = patternState === 'pattern';
+  if (!msg.hidden) msg.textContent = t(`pig.state.${patternState}`);
+}
+
+/** Color sólido o patrón, según la opción elegida. */
+function applyShellMaterial() {
+  const withPattern = pattern.on && !!patternValues;
+  solidMat.map = withPattern ? patternTex : null;
+  solidMat.color.set(withPattern ? '#ffffff' : $('shellColor').value);
+  solidMat.vertexColors = !withPattern && $('bands').checked;
+  solidMat.needsUpdate = true;
+  // El interior, más claro que el color de fondo del exterior
+  innerMat.color.set(withPattern ? pattern.base : $('shellColor').value).lerp(new THREE.Color('#ffffff'), 0.55);
+  const swatch = document.querySelector('.pattern-card[data-pattern="none"] .swatch');
+  if (swatch) swatch.style.background = $('shellColor').value;
+}
+
+// Cálculo en un Web Worker; si no está disponible, en el hilo principal.
+// Si llega un cálculo nuevo mientras otro sigue en marcha, se descarta el worker
+// ocupado en lugar de esperar: al arrastrar un slider solo importa el último valor.
+let patternWorker = null;
+let workerBusy = false;
+let workerFailed = false;
+const workerUrl = new URL('./pigment-worker.js', import.meta.url);
+
+function startWorker() {
+  try {
+    patternWorker = new Worker(workerUrl, { type: 'module' });
+    patternWorker.onmessage = (e) => {
+      workerBusy = false;
+      onPatternResult(e.data);
+    };
+    patternWorker.onerror = () => {
+      patternWorker = null;
+      workerBusy = false;
+      workerFailed = true;
+      computePattern();
+    };
+  } catch {
+    patternWorker = null;
+    workerFailed = true;
+  }
+}
+startWorker();
+
+let patternJob = 0;
+let patternTimer = 0;
+let patternGeomKey = '';
+
+/** Parámetros de simulación a partir del estado (el control global solo existe con sustrato). */
+function simParams(p) {
+  const { model, Da, D2, ra, r2, kappa, ba, b2, noise, globalCtl, T, seed, insertion } = p;
+  return { model, Da, D2, ra, r2, kappa, ba, b2, noise, globalCtl: model === 'AS' ? globalCtl : 0, T, seed, insertion };
+}
+
+function computePattern() {
+  const id = ++patternJob;
+  const p = simParams(pattern);
+  // El tamaño del patrón es el número de células del borde (menos células, elementos mayores)
+  const g = { W: state.W, turns: state.turns, rows: PATTERN_ROWS, width: PATTERN_WIDTH, nMax: Math.round(PATTERN_CELLS / pattern.size) };
+  patternGeomKey = `${state.W}|${state.turns}`;
+  $('patternStatus').hidden = false;
+  if (workerBusy && patternWorker) {
+    patternWorker.terminate();
+    startWorker();
+  }
+  if (patternWorker) {
+    workerBusy = true;
+    patternWorker.postMessage({ id, p, g });
+  } else if (workerFailed) {
+    setTimeout(() => {
+      const r = simulatePattern(p, g);
+      onPatternResult({ id, v: r.values, second: r.second, state: r.state });
+    });
+  }
+}
+
+function onPatternResult({ id, v, second, state: simState }) {
+  if (id !== patternJob) return; // llegó un cálculo antiguo
+  patternValues = v;
+  patternSecond = second;
+  patternState = simState;
+  $('patternStatus').hidden = true;
+  paintPattern();
+}
+
+function schedulePattern() {
+  clearTimeout(patternTimer);
+  if (pattern.on) patternTimer = setTimeout(computePattern, 80);
+  writeHash();
+  if (formulaView === 'meinhardt') scheduleFormula();
+}
+
+// Con inserción de células el patrón depende del tamaño de cada vuelta (W y N)
+function onGeometryForPattern() {
+  if (pattern.insertion && pattern.on && patternGeomKey !== `${state.W}|${state.turns}`) schedulePattern();
+}
+
+// Controles. Las magnitudes intuitivas (tamaño, tiempo, irregularidad, cantidad)
+// están en las dos vistas; las constantes del modelo, solo en la avanzada.
+const sub = (x, y) => `${x}<sub>${y}</sub>`;
+const second = () => (pattern.model === 'AS' ? 'b' : 'h');
+const PIG_SIMPLE = [
+  { key: 'size', id: 'pSize', i18n: 'pSize', log: true, min: 0.5, max: 4, digits: 2 },
+  { key: 'T', id: 'pT', i18n: 'pT', log: true, min: 500, max: 12000, format: (v) => v.toFixed(0) },
+  { key: 'noise', id: 'pnoise', i18n: 'pNoise', min: 0, max: 0.5, step: 0.01, digits: 2 },
+  { key: 'amount', id: 'pAmount', i18n: 'pAmount', min: 0.15, max: 0.85, step: 0.01, digits: 2 },
+];
+
+// Constantes del modelo: escala logarítmica, con la posición izquierda = 0 cuando tiene sentido
+const PIG_ADVANCED = [
+  { key: 'Da', id: 'pDa', sym: sub('D', 'a'), log: true, zero: true, min: 0.0005, max: 0.5, format: sig },
+  { key: 'D2', id: 'pD2', sym: () => sub('D', second()), i18n: () => `D2.${pattern.model}`, log: true, zero: true, min: 0.001, max: 30, format: sig },
+  { key: 'ra', id: 'pra', sym: sub('r', 'a'), log: true, min: 0.002, max: 0.3, format: sig },
+  { key: 'r2', id: 'pr2', sym: () => sub('r', second()), i18n: () => `r2.${pattern.model}`, log: true, zero: true, min: 0.0005, max: 0.3, format: sig },
+  { key: 'kappa', id: 'pkappa', sym: 'κ', min: 0, max: 2, step: 0.01, digits: 2 },
+  { key: 'ba', id: 'pba', sym: sub('b', 'a'), log: true, zero: true, min: 0.0001, max: 0.1, format: sig },
+  { key: 'b2', id: 'pb2', sym: () => sub('b', second()), i18n: () => `b2.${pattern.model}`, log: true, zero: true, min: 0.0005, max: 0.1, format: sig },
+  { key: 'globalCtl', id: 'pglobal', sym: 'g', log: true, zero: true, min: 0.0005, max: 0.05, format: sig },
+];
+const PIG_PARAMS = [...PIG_SIMPLE, ...PIG_ADVANCED];
+
+const pigControls = {};
+for (const [defs, container] of [[PIG_SIMPLE, 'pig-simple'], [PIG_ADVANCED, 'pig-params']]) {
+  defs.forEach((d) => {
+    createParam(d, $(container), {
+      compact: true,
+      target: pattern,
+      onChange: (key) => {
+        if (key === 'amount') {
+          paintPattern(); // solo cambia el coloreado, no la simulación
+          writeHash();
+          return;
+        }
+        markPatternCustom();
+        schedulePattern();
+      },
+    });
+    pigControls[d.id] = controlsByKey[d.id];
+  });
+}
+
+// Galería: color sólido y un preset por tipo de patrón, con su miniatura real
+const gallery = $('patternGallery');
+const GALLERY = ['none', ...Object.keys(PATTERN_PRESETS)];
+
+function buildGallery() {
+  for (const key of GALLERY) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'pattern-card';
+    card.dataset.pattern = key;
+    card.setAttribute('role', 'radio');
+    if (key === 'none') {
+      card.innerHTML = '<div class="swatch"></div><span></span>';
+    } else {
+      const c = document.createElement('canvas');
+      c.width = THUMB.width;
+      c.height = THUMB.rows;
+      card.append(c, document.createElement('span'));
+    }
+    card.addEventListener('click', () => selectPattern(key));
+    gallery.append(card);
+  }
+  updateGalleryLabels();
+}
+
+function updateGalleryLabels() {
+  gallery.querySelectorAll('.pattern-card').forEach((card) => {
+    const key = card.dataset.pattern;
+    card.querySelector('span').textContent = key === 'none' ? t('pig.none') : tPattern(key);
+  });
+}
+
+function updateGallerySelection() {
+  const selected = pattern.on ? pattern.preset : 'none';
+  gallery.querySelectorAll('.pattern-card').forEach((card) => card.setAttribute('aria-checked', String(card.dataset.pattern === selected)));
+}
+
+// Miniaturas: se calculan una vez, en un worker propio para no interferir con el principal
+let thumbsDone = false;
+function computeThumbs() {
+  if (thumbsDone) return;
+  thumbsDone = true;
+  const jobs = Object.entries(PATTERN_PRESETS).map(([key, preset]) => {
+    const p = { ...pickPattern(preset), seed: 7 };
+    return { id: key, p: simParams(p), g: { W: 2.4, turns: 4.5, ...THUMB, nMax: Math.round(PATTERN_CELLS / p.size) }, preset: p };
+  });
+  const draw = (key, values) => {
+    const job = jobs.find((j) => j.id === key);
+    const canvas = gallery.querySelector(`.pattern-card[data-pattern="${key}"] canvas`);
+    const img = new ImageData(THUMB.width, THUMB.rows);
+    colorize(values, job.preset.base, job.preset.pigment, job.preset.amount, img.data);
+    canvas.getContext('2d').putImageData(img, 0, 0);
+  };
+  try {
+    const w = new Worker(workerUrl, { type: 'module' });
+    let left = jobs.length;
+    w.onmessage = (e) => {
+      draw(e.data.id, e.data.v);
+      if (--left === 0) w.terminate();
+    };
+    jobs.forEach(({ id, p, g }) => w.postMessage({ id, p, g }));
+  } catch {
+    jobs.forEach(({ id, p, g }) => setTimeout(() => draw(id, simulatePattern(p, g).values)));
+  }
+}
+
+function markPatternCustom() {
+  pattern.preset = 'custom';
+  updateGallerySelection();
+}
+
+/** El patrón solo se ve sobre la superficie: en modo líneas se pasa a sólido. */
+function ensureSurfaceMode() {
+  if (state.mode === 'lines') {
+    state.mode = 'solid';
+    applyMode();
+  }
+}
+
+function setPatternOn(on) {
+  pattern.on = on;
+  $('pigBody').hidden = !on;
+  if (on) {
+    ensureSurfaceMode();
+    if (!patternValues) computePattern();
+  }
+  applyShellMaterial();
+  updateGallerySelection();
+  writeHash();
+}
+
+function selectPattern(key) {
+  if (key === 'none') return setPatternOn(false);
+  pattern.preset = key;
+  Object.assign(pattern, pickPattern(PATTERN_PRESETS[key]));
+  syncPatternControls();
+  setPatternOn(true);
+  computePattern();
+}
+
+/** Lleva el estado del patrón a todos los controles. */
+function syncPatternControls() {
+  PIG_PARAMS.forEach((d) => pigControls[d.id].set(pattern[d.key]));
+  Object.values(pigControls).forEach((c) => c.relabel());
+  pigControls.pglobal.el.hidden = pattern.model !== 'AS'; // el control global solo existe con sustrato
+  $('patternModel').value = pattern.model;
+  $('patternInsertion').checked = pattern.insertion;
+  $('patternSeed').value = pattern.seed;
+  $('pigBase').value = pattern.base;
+  $('pigColor').value = pattern.pigment;
+  $('pigBody').hidden = !pattern.on;
+  $('profileSecond').textContent = t(pattern.model === 'AS' ? 'pig.profile.b' : 'pig.profile.h');
+  updateGallerySelection();
+}
+
+// Vista simple o avanzada: la avanzada muestra también las constantes del modelo
+function setPigMode(mode) {
+  $('tab-pigment').dataset.pmode = mode;
+  document.querySelectorAll('#pigMode [data-pmode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pmode === mode)));
+  drawSpacetime(); // la marca del instante y el perfil solo existen en la vista avanzada
+}
+document.querySelectorAll('#pigMode [data-pmode]').forEach((b) => b.addEventListener('click', () => setPigMode(b.dataset.pmode)));
+
+// Al cambiar de modelo se cargan las constantes de su preset de referencia: las del
+// otro modelo no tienen sentido aquí (p. ej. sin producción de sustrato no hay patrón)
+$('patternModel').addEventListener('change', (e) => {
+  const { base, pigment, size, amount } = pattern;
+  Object.assign(pattern, pickPattern(PATTERN_PRESETS[MODEL_REFERENCE[e.target.value]]), { base, pigment, size, amount });
+  syncPatternControls();
+  markPatternCustom();
+  schedulePattern();
+});
+
+$('patternInsertion').addEventListener('change', (e) => {
+  pattern.insertion = e.target.checked;
+  markPatternCustom();
+  schedulePattern();
+});
+
+$('patternSeed').addEventListener('change', (e) => {
+  const v = Math.round(Math.min(99999, Math.max(1, parseFloat(e.target.value) || 1)));
+  pattern.seed = v;
+  e.target.value = v;
+  schedulePattern();
+});
+
+$('newSeed').addEventListener('click', () => {
+  pattern.seed = 1 + Math.floor(Math.random() * 99999);
+  $('patternSeed').value = pattern.seed;
+  schedulePattern();
+});
+
+for (const [id, key] of [['pigBase', 'base'], ['pigColor', 'pigment']]) {
+  $(id).addEventListener('input', (e) => {
+    pattern[key] = e.target.value;
+    paintPattern(); // cambiar el color no requiere volver a simular
+    writeHash();
+  });
+}
+
+$('pigTheory').addEventListener('click', () => openInfo('meinhardt'));
+
+$('savePattern').addEventListener('click', () => {
+  if (patternValues) download(patternCanvas.toDataURL('image/png'), `meinhardt_${pattern.preset}_seed${pattern.seed}.png`);
+});
+
+// Pestañas Forma | Pigmento. Entrar en Pigmento ya es para colorear la concha.
+function showTab(name) {
+  document.querySelectorAll('.tabs [data-tab]').forEach((b) => {
+    const on = b.dataset.tab === name;
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;
+  });
+  $('tab-shape').hidden = name !== 'shape';
+  $('tab-pigment').hidden = name !== 'pigment';
+  if (name === 'pigment') {
+    computeThumbs();
+    if (!pattern.on) setPatternOn(true);
+    drawSpacetime();
+  }
+}
+document.querySelectorAll('.tabs [data-tab]').forEach((b) => {
+  b.addEventListener('click', () => showTab(b.dataset.tab));
+  b.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const next = b.dataset.tab === 'shape' ? 'pigment' : 'shape';
+    showTab(next);
+    document.querySelector(`.tabs [data-tab="${next}"]`).focus();
+  });
+});
+
+buildGallery();
+syncPatternControls();
+if (pattern.on) computePattern();
+
+// ---------------------------------------------------------------------------
 // Idioma
 // ---------------------------------------------------------------------------
 
@@ -961,8 +1629,13 @@ function applyLanguage(lang) {
   drawMorpho();
   document.querySelectorAll('.lang button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === getLang())));
   // applyStatic reemplaza el HTML con TeX sin componer
-  delete infoBody.dataset.typeset;
+  infoBody.querySelectorAll('.info-page').forEach((el) => delete el.dataset.typeset);
   if (infoDialog.open) openInfo();
+  updateGalleryLabels();
+  updatePatternMessage();
+  $('profileSecond').textContent = t(pattern.model === 'AS' ? 'pig.profile.b' : 'pig.profile.h');
+  Object.values(pigControls).forEach((c) => c.relabel());
+  drawSpacetime();
   if (!formulaPanel.hidden) setFormulaOpen(true);
 }
 

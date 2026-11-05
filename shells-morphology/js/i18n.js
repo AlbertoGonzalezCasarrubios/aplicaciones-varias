@@ -27,10 +27,35 @@ const REFS = `
     <li>Raup, D. M. (1966). Geometric analysis of shell coiling: general problems. <i>J. Paleontology</i> 40, 1178–1190.</li>
   </ul>`;
 
+const AI_TEX = String.raw`\[
+  \begin{aligned}
+    \frac{\partial a}{\partial t} &= s\left(\frac{a^2}{h\,(1+\kappa a^2)} + b_a\right) - r_a\,a + D_a\,\frac{\partial^2 a}{\partial x^2} \\
+    \frac{\partial h}{\partial t} &= s\,a^2 - r_h\,h + D_h\,\frac{\partial^2 h}{\partial x^2} + b_h
+  \end{aligned}
+\]`;
+
+const AS_TEX = String.raw`\[
+  \begin{aligned}
+    \frac{\partial a}{\partial t} &= s\,b\left(\frac{a^2}{1+\kappa a^2} + b_a\right) - r_a\,a + D_a\,\frac{\partial^2 a}{\partial x^2} \\
+    \frac{\partial b}{\partial t} &= b_b - s\,b\left(\frac{a^2}{1+\kappa a^2} + b_a\right) - r_b\,b + D_b\,\frac{\partial^2 b}{\partial x^2}
+  \end{aligned}
+\]`;
+
+const GLOBAL_TEX = String.raw`\[ \frac{dc}{dt} = r_c\,\big(\langle a \rangle - c\big), \qquad b_a^{\mathrm{ef}} = b_a + \frac{g}{1 + 40\,c} \]`;
+
+const MEIN_REFS = `
+  <ul class="refs-list">
+    <li>Turing, A. M. (1952). The chemical basis of morphogenesis. <i>Phil. Trans. R. Soc. B</i> 237, 37–72.</li>
+    <li>Gierer, A. &amp; Meinhardt, H. (1972). A theory of biological pattern formation. <i>Kybernetik</i> 12, 30–39.</li>
+    <li>Meinhardt, H. &amp; Klingler, M. (1987). A model for pattern formation on the shells of molluscs. <i>J. Theor. Biol.</i> 126, 63–89.</li>
+    <li>Fowler, D. R., Meinhardt, H. &amp; Prusinkiewicz, P. (1992). Modeling seashells. <i>Computer Graphics (SIGGRAPH '92)</i> 26(2), 379–387.</li>
+    <li>Meinhardt, H. (2009). <i>The Algorithmic Beauty of Sea Shells</i>, 4th ed. Springer.</li>
+  </ul>`;
+
 export const STRINGS = {
   en: {
-    'doc.title': 'Theoretical Shell Morphology',
-    'brand.subtitle': "Raup's shell-coiling model (1962, 1966)",
+    'doc.title': 'Theoretical Shells: Form and Colour',
+    'brand.subtitle': "Raup's coiling model · Meinhardt's pigmentation models",
     'lang.label': 'Language',
     'preset.title': 'Preset',
     'preset.custom': 'Custom',
@@ -79,6 +104,50 @@ export const STRINGS = {
     'tb.equation': 'Equation',
     'tb.info': 'About',
     'tb.axes': 'Axes',
+    'tab.shape': 'Shape · Raup',
+    'tab.pigment': 'Pigment · Meinhardt',
+    'tab.label': 'Sections',
+    'pig.theory': 'Theory →',
+    'pig.none': 'Solid colour',
+    'pig.mode': 'Controls',
+    'pig.mode.simple': 'Simple',
+    'pig.mode.advanced': 'Advanced',
+    'pig.profile': 'Margin profile',
+    'pig.profile.a': 'Activator a',
+    'pig.profile.h': 'Inhibitor h',
+    'pig.profile.b': 'Substrate b',
+    'pig.profile.threshold': 'pigment threshold',
+    'pig.profile.time': 'time',
+    'pig.profile.hint': 'Concentrations along the aperture margin at one moment, each relative to its maximum. Click or drag on the space–time record to choose the moment. Pigment is laid down where the activator rises above the threshold.',
+    'pig.state.extinct': 'No pattern: with these values the activator dies out and the shell stays unpigmented. Try a preset or one of the recipes below.',
+    'pig.state.uniform': 'No pattern: with these values the margin stays uniform. Try a preset or one of the recipes below.',
+    'pig.preset': 'Pattern',
+    'pig.custom': 'Custom',
+    'pig.spacetime': 'Space–time record',
+    'pig.axis.x': '← aperture margin (x) →',
+    'pig.axis.t': 'apex → aperture (time)',
+    'pig.computing': 'Computing…',
+    'pig.colors': 'Pigment colours',
+    'pig.base': 'Background',
+    'pig.pigment': 'Pigment',
+    'pig.model': 'Model',
+    'pig.model.AI': 'Activator–inhibitor',
+    'pig.model.AS': 'Activator–substrate',
+    'pig.recipes': '<strong>How to change the type of pattern</strong><ul><li><b>Bands along the spiral</b>: activator–inhibitor with a far-reaching inhibitor (D<sub>h</sub> ≫ D<sub>a</sub>) that is faster than the activator (r<sub>h</sub> &gt; r<sub>a</sub>).</li><li><b>Stripes parallel to the margin</b>: activator–inhibitor with D<sub>h</sub> ≈ 0 (far left) and a longer-lived inhibitor (r<sub>h</sub> &lt; r<sub>a</sub>).</li><li><b>Oblique lines and triangles</b>: activator–substrate with a slowly recovering substrate (small b<sub>b</sub>); global control g &gt; 0 for triangles.</li></ul>',
+    'pig.params': 'Pattern controls',
+    'pig.advanced': 'Advanced: model constants',
+    'pig.advanced.hint': 'Here you control everything. Constants use logarithmic sliders whose leftmost position is 0. Near some values the pattern changes abruptly: those are real thresholds of the model, where one type of pattern turns into another. Changing the model loads constants that work for it.',
+    'eq.mein.note': 'x: position along the margin (in cells) · t: time · s: source density of each cell',
+    'pig.seed': 'Seed',
+    'pig.newSeed': 'New seed',
+    'pig.insertion': 'Growing margin (cell insertion)',
+    'pig.insertion.desc': 'On: new cells are added to the margin as the shell grows, so pattern elements keep their real size and new stripes appear between the old ones. Off: the margin always has the same cells and the whole pattern simply grows with the shell.',
+    'pig.save': 'Save pattern PNG',
+    'pig.note': 'This tab paints the shell with the selected pattern. Choose “Solid colour” to go back to a plain shell.',
+    'info.page.raup': 'Raup · shape',
+    'info.page.meinhardt': 'Meinhardt · pigment',
+    'info.page.app': 'App & credits',
+    'info.pages': 'About sections',
     'tb.fullscreen': 'Fullscreen',
     'tb.exitFullscreen': 'Exit fullscreen',
     'tb.fullscreen.hint': 'Show the 3D view fullscreen (F)',
@@ -111,7 +180,6 @@ export const STRINGS = {
     loading: 'Loading Three.js…',
     'info.title': 'About this app',
     'info.close': 'Close',
-    'refs.short': 'Raup (1962) <i>Science</i> 138 · Raup (1966) <i>J. Paleontology</i> 40',
     params: {
       W: { name: 'Whorl expansion rate', desc: 'Growth factor of the aperture per revolution' },
       D: { name: 'Distance from axis', desc: 'Umbilicus size: inner / outer radius of the aperture' },
@@ -122,6 +190,27 @@ export const STRINGS = {
       ringsPerTurn: { name: 'Growth lines per whorl' },
       lineWidth: { name: 'Line width (px)' },
       lineOpacity: { name: 'Line opacity' },
+      Da: { name: 'Activator diffusion' },
+      'D2.AI': { name: 'Inhibitor diffusion' },
+      'D2.AS': { name: 'Substrate diffusion' },
+      ra: { name: 'Activator decay' },
+      'r2.AI': { name: 'Inhibitor decay' },
+      'r2.AS': { name: 'Substrate decay' },
+      kappa: { name: 'Saturation' },
+      ba: { name: 'Basal activator production' },
+      'b2.AI': { name: 'Basal inhibitor production' },
+      'b2.AS': { name: 'Substrate production' },
+      noise: { name: 'Cell-to-cell noise' },
+      globalCtl: { name: 'Global control' },
+      pT: { name: 'Growth time', desc: 'Simulated time from apex to aperture: more time, more stripes along the direction of growth' },
+      pSize: { name: 'Pattern size', desc: 'Sets the number of cells along the margin: a larger pattern means fewer cells' },
+      pNoise: { name: 'Irregularity', desc: 'Differences between cells (σ): from regular to irregular patterns' },
+      pAmount: { name: 'Pigment amount', desc: 'Lowers or raises the threshold above which pigment is laid down; it does not change the simulation' },
+    },
+    patterns: {
+      nautilus: 'Nautilus — flame stripes',
+      cepaea: 'Cepaea nemoralis — spiral bands',
+      oliva: 'Oliva porphyria — tent pattern',
     },
     presets: {
       'Gasterópodos': 'Gastropods',
@@ -136,7 +225,7 @@ export const STRINGS = {
       ammonite: 'Evolute ammonite (Dactylioceras)',
       almeja: 'Venus clam (Venus)',
     },
-    'info.body': `
+    'info.raup': `
       <blockquote class="quote">
         <p>“The basic form of many coiled gastropod shells can be defined by four parameters. A digital computer with automatic plotting equipment can be used to make graphical reconstructions of a shell from any given values of the four parameters.”</p>
         <cite>— David M. Raup, <i>Science</i> (1962)</cite>
@@ -166,6 +255,57 @@ export const STRINGS = {
       ${MIRROR_TEX}
       <p>The model ignores hinge teeth, the ligament and ornament, and it cannot represent inequivalve shells (oysters, scallops) or brachiopods, whose two valves differ.</p>
 
+      <h3>References</h3>
+      ${REFS}`,
+    'info.meinhardt': `
+      <h3>Painting with chemistry</h3>
+      <p>A mollusc only adds pigment where the shell grows: along the margin of the aperture. Whatever happens there, cell by cell, is frozen into the shell as it grows. A shell pattern is therefore a <strong>record in time of a one-dimensional process</strong>: the horizontal direction along the margin is space \\(x\\), and the direction of growth is time. This was Hans Meinhardt's key insight, and it is why the panel in the <em>Pigment</em> tab shows a space–time diagram.</p>
+
+      <h3>Local activation, long-range inhibition</h3>
+      <p>Following Turing (1952), Gierer and Meinhardt (1972) showed that patterns arise spontaneously from two interacting substances: an <strong>activator</strong> \\(a\\) that enhances its own production (autocatalysis), and an antagonist that diffuses faster and keeps it in check. A small random excess of activator grows locally, while the fast-spreading antagonist prevents activation nearby. The result is a regular pattern that nobody "drew".</p>
+
+      <h3>Activator–inhibitor model</h3>
+      ${AI_TEX}
+      <ul>
+        <li>\\(s\\) is the <em>source density</em>: each cell's ability to perform the reaction. It varies slightly from cell to cell (the <em>noise</em> parameter), which is what starts the patterns.</li>
+        <li>\\(r_a, r_h\\) are decay rates and \\(D_a, D_h\\) diffusion rates; \\(b_a, b_h\\) are small basal productions; \\(\\kappa\\) saturates the autocatalysis and makes peaks broader.</li>
+        <li>If the inhibitor is fast (\\(r_h > r_a\\)) and spreads far (\\(D_h \\gg D_a\\)), the peaks are <strong>stable in time</strong> and draw bands along the direction of growth.</li>
+        <li>If the inhibitor lives longer than the activator (\\(r_h < r_a\\)), each burst of activation is shut down by its own inhibitor and the system <strong>oscillates</strong>, drawing stripes parallel to the margin.</li>
+      </ul>
+
+      <h3>Activator–substrate model</h3>
+      ${AS_TEX}
+      <p>Here autocatalysis consumes a substrate \\(b\\) that is produced at rate \\(b_b\\). Where activation is high the substrate is <strong>depleted</strong>, and the cell needs time to recover before it can be activated again: it becomes <strong>refractory</strong>. Activation then spreads to neighbouring cells as a <strong>travelling wave</strong>, which draws an oblique line on the shell. When two waves meet they <strong>annihilate</strong>, because each runs into the refractory wake of the other, and the lines form a V.</p>
+
+      <h3>Global control: the triangles of <i>Oliva porphyria</i></h3>
+      <p>Meinhardt and Klingler (1987) explained the tent pattern of <i>Oliva</i> with a third substance that is shared by the whole margin, like a hormone. It measures the total activity: when waves annihilate and activity drops, the signal falls and makes it easier to trigger new waves, which split into new lines and close the triangles. This app uses a simplified version of that mechanism:</p>
+      ${GLOBAL_TEX}
+
+      <h3>Which pattern comes from which dynamics</h3>
+      <ul>
+        <li><strong>Bands along the spiral</strong> (<i>Cepaea nemoralis</i>): stable activator peaks.</li>
+        <li><strong>Stripes parallel to the margin</strong> (the flames of <i>Nautilus</i>): oscillation; the irregularity comes from weak coupling between cells.</li>
+        <li><strong>Oblique lines, zigzags and triangles</strong> (<i>Oliva</i>, many <i>Conus</i>): travelling waves, their collisions and new initiations.</li>
+      </ul>
+
+      <h3>Growth of the margin</h3>
+      <p>A logarithmic spiral turning at a constant rate corresponds to growth at a constant relative rate, so every whorl gets the same simulation time. But the margin gets longer as the shell grows. With <strong>cell insertion</strong>, new cells are added at random positions in proportion to the size of the shell: pattern elements keep their absolute size and new stripes are intercalated, as in many real shells. Without it, the number of cells is fixed and the pattern simply scales with the shell, which is closer to shells like <i>Cepaea</i>, whose bands are present from the apex and just widen.</p>
+
+      <h3>From the record to the shell</h3>
+      <p>The space–time record is wrapped onto the 3D surface: the position along the margin becomes the angle \\(\\varphi\\) around the aperture, and time becomes the coiling angle \\(\\theta\\). Fowler, Meinhardt and Prusinkiewicz (1992) combined both models in exactly this way, joining Raup's geometry with Meinhardt's pigmentation.</p>
+
+      <h3>Simple and advanced controls</h3>
+      <p>The simple controls are not hidden multipliers: each one is a real quantity of the model. <em>Pattern size</em> sets the number of cells along the margin (256 at ×1): since diffusion is measured in cells, fewer cells make every element larger relative to the shell. <em>Growth time</em> is \\(T\\), <em>irregularity</em> is the cell-to-cell variation \\(\\sigma\\) of the source density, and <em>pigment amount</em> moves the pigmentation threshold. The <em>Advanced</em> view shows these same quantities together with the constants of the equations, on logarithmic sliders because they span several orders of magnitude, so everything can be controlled from there. Changing the model loads constants that work for it. If a combination of values forms no pattern (the activator dies out or the margin stays uniform), the app says so instead of rescaling tiny differences into a false pattern. The advanced view also shows the <em>margin profile</em>: the activator and the inhibitor (or substrate) along the margin at the moment you pick on the space–time record, with the pigmentation threshold, which is the clearest way to see local activation and lateral inhibition at work.</p>
+
+      <h3>Only the outside is pigmented</h3>
+      <p>The pigment is laid down in the outer layer of the shell, so the inside of the aperture is drawn unpigmented, with a light nacre-like sheen.</p>
+
+      <h3>Simplifications</h3>
+      <p>The equations are integrated with an explicit Euler scheme, choosing a time step small enough to be stable, on a margin of 256 cells at the default pattern size. Pigment is laid down where the activator, rescaled to its 2–99.5 % range (ignoring the initial transient at the apex), exceeds a threshold, as in Meinhardt's simulations; this gives sharp edges. The presets are approximate reproductions of the pattern types, not fits to real specimens.</p>
+
+      <h3>References</h3>
+      ${MEIN_REFS}`,
+    'info.app': `
       <h3>How the app works</h3>
       <ul>
         <li>The surface is evaluated on a grid of \\(\\theta \\times \\varphi\\) points and each cell is split into two triangles. It is regenerated on every slider change.</li>
@@ -173,6 +313,7 @@ export const STRINGS = {
         <li>The shell is centred and scaled to a fixed size, so the coordinates are relative: only the shape matters, not the absolute size.</li>
         <li>In line mode, hidden lines are removed by drawing the surface into the depth buffer only.</li>
         <li>The axes gizmo shows the \\(x, y, z\\) frame of the equation (\\(z\\) = coiling axis). The view buttons use the standard orientations of malacology: apertural, dorsal (abapertural), apical, umbilical and profile.</li>
+        <li>The pigmentation is simulated in a background thread (a Web Worker) and applied to the mesh as a texture: the position along the aperture is the horizontal texture coordinate and \\(\\theta\\) the vertical one.</li>
         <li>Built with Three.js (WebGL) and MathJax. The current shell is stored in the URL, so you can share a link to it.</li>
       </ul>
 
@@ -180,15 +321,12 @@ export const STRINGS = {
       <p>For any questions or comments, contact <strong>Alberto González Casarrubios</strong> (Universidad Complutense de Madrid): <a href="mailto:albert23@ucm.es">albert23@ucm.es</a>.</p>
 
       <h3>License</h3>
-      <p>This work is licensed under <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)</a>. You may share and adapt it as long as you give appropriate credit, but not for commercial purposes.</p>
-
-      <h3>References</h3>
-      ${REFS}`,
+      <p>This work is licensed under <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)</a>. You may share and adapt it as long as you give appropriate credit, but not for commercial purposes.</p>`,
   },
 
   es: {
-    'doc.title': 'Morfología teórica de conchas',
-    'brand.subtitle': 'Modelo de enrollamiento de Raup (1962, 1966)',
+    'doc.title': 'Conchas teóricas: forma y color',
+    'brand.subtitle': 'Modelo de enrollamiento de Raup · modelos de pigmentación de Meinhardt',
     'lang.label': 'Idioma',
     'preset.title': 'Preset',
     'preset.custom': 'Personalizado',
@@ -237,6 +375,50 @@ export const STRINGS = {
     'tb.equation': 'Ecuación',
     'tb.info': 'Info',
     'tb.axes': 'Ejes',
+    'tab.shape': 'Forma · Raup',
+    'tab.pigment': 'Pigmento · Meinhardt',
+    'tab.label': 'Secciones',
+    'pig.theory': 'Teoría →',
+    'pig.none': 'Color sólido',
+    'pig.mode': 'Controles',
+    'pig.mode.simple': 'Simple',
+    'pig.mode.advanced': 'Avanzado',
+    'pig.profile': 'Perfil del borde',
+    'pig.profile.a': 'Activador a',
+    'pig.profile.h': 'Inhibidor h',
+    'pig.profile.b': 'Sustrato b',
+    'pig.profile.threshold': 'umbral de pigmento',
+    'pig.profile.time': 'tiempo',
+    'pig.profile.hint': 'Concentraciones a lo largo del borde de la apertura en un instante, cada una relativa a su máximo. Pincha o arrastra sobre el registro espacio-tiempo para elegir el instante. Se deposita pigmento donde el activador supera el umbral.',
+    'pig.state.extinct': 'Sin patrón: con estos valores el activador se extingue y la concha queda sin pigmento. Prueba un preset o una de las recetas de abajo.',
+    'pig.state.uniform': 'Sin patrón: con estos valores el borde queda uniforme. Prueba un preset o una de las recetas de abajo.',
+    'pig.preset': 'Patrón',
+    'pig.custom': 'Personalizado',
+    'pig.spacetime': 'Registro espacio-tiempo',
+    'pig.axis.x': '← borde de la apertura (x) →',
+    'pig.axis.t': 'ápice → apertura (tiempo)',
+    'pig.computing': 'Calculando…',
+    'pig.colors': 'Colores del pigmento',
+    'pig.base': 'Fondo',
+    'pig.pigment': 'Pigmento',
+    'pig.model': 'Modelo',
+    'pig.model.AI': 'Activador-inhibidor',
+    'pig.model.AS': 'Activador-sustrato',
+    'pig.recipes': '<strong>Cómo cambiar de tipo de patrón</strong><ul><li><b>Bandas a lo largo de la espiral</b>: activador-inhibidor con un inhibidor de largo alcance (D<sub>h</sub> ≫ D<sub>a</sub>) más rápido que el activador (r<sub>h</sub> &gt; r<sub>a</sub>).</li><li><b>Rayas paralelas al borde</b>: activador-inhibidor con D<sub>h</sub> ≈ 0 (a la izquierda del todo) y un inhibidor de vida más larga (r<sub>h</sub> &lt; r<sub>a</sub>).</li><li><b>Líneas oblicuas y triángulos</b>: activador-sustrato con un sustrato que se recupera despacio (b<sub>b</sub> pequeño); control global g &gt; 0 para los triángulos.</li></ul>',
+    'pig.params': 'Controles del patrón',
+    'pig.advanced': 'Avanzado: constantes del modelo',
+    'pig.advanced.hint': 'Aquí se controla todo. Las constantes usan sliders logarítmicos cuya posición más a la izquierda es 0. Cerca de algunos valores el patrón cambia de golpe: son umbrales reales del modelo, donde un tipo de patrón se convierte en otro. Al cambiar de modelo se cargan constantes que funcionan con él.',
+    'eq.mein.note': 'x: posición a lo largo del borde (en células) · t: tiempo · s: densidad de fuente de cada célula',
+    'pig.seed': 'Semilla',
+    'pig.newSeed': 'Nueva semilla',
+    'pig.insertion': 'Borde que crece (inserción de células)',
+    'pig.insertion.desc': 'Activado: al crecer la concha se añaden células al borde, así que los elementos del patrón mantienen su tamaño real y aparecen rayas nuevas entre las antiguas. Desactivado: el borde tiene siempre las mismas células y todo el patrón simplemente crece con la concha.',
+    'pig.save': 'Guardar patrón PNG',
+    'pig.note': 'Esta pestaña pinta la concha con el patrón elegido. Elige «Color sólido» para volver a una concha lisa.',
+    'info.page.raup': 'Raup · forma',
+    'info.page.meinhardt': 'Meinhardt · pigmento',
+    'info.page.app': 'App y créditos',
+    'info.pages': 'Secciones de la información',
     'tb.fullscreen': 'Pantalla completa',
     'tb.exitFullscreen': 'Salir de pantalla completa',
     'tb.fullscreen.hint': 'Ver la vista 3D a pantalla completa (F)',
@@ -269,7 +451,6 @@ export const STRINGS = {
     loading: 'Cargando Three.js…',
     'info.title': 'Acerca de esta app',
     'info.close': 'Cerrar',
-    'refs.short': 'Raup (1962) <i>Science</i> 138 · Raup (1966) <i>J. Paleontology</i> 40',
     params: {
       W: { name: 'Expansión de la espiral', desc: 'Factor de crecimiento de la apertura por vuelta' },
       D: { name: 'Distancia al eje', desc: 'Tamaño del ombligo: radio interno / externo de la apertura' },
@@ -280,6 +461,27 @@ export const STRINGS = {
       ringsPerTurn: { name: 'Líneas de crecimiento / vuelta' },
       lineWidth: { name: 'Grosor de línea (px)' },
       lineOpacity: { name: 'Opacidad de líneas' },
+      Da: { name: 'Difusión del activador' },
+      'D2.AI': { name: 'Difusión del inhibidor' },
+      'D2.AS': { name: 'Difusión del sustrato' },
+      ra: { name: 'Decaimiento del activador' },
+      'r2.AI': { name: 'Decaimiento del inhibidor' },
+      'r2.AS': { name: 'Decaimiento del sustrato' },
+      kappa: { name: 'Saturación' },
+      ba: { name: 'Producción basal del activador' },
+      'b2.AI': { name: 'Producción basal del inhibidor' },
+      'b2.AS': { name: 'Producción de sustrato' },
+      noise: { name: 'Ruido entre células' },
+      globalCtl: { name: 'Control global' },
+      pT: { name: 'Tiempo de crecimiento', desc: 'Tiempo simulado del ápice a la apertura: más tiempo, más rayas en la dirección de crecimiento' },
+      pSize: { name: 'Tamaño del patrón', desc: 'Fija el número de células a lo largo del borde: un patrón mayor significa menos células' },
+      pNoise: { name: 'Irregularidad', desc: 'Diferencias entre células (σ): de patrones regulares a irregulares' },
+      pAmount: { name: 'Cantidad de pigmento', desc: 'Baja o sube el umbral a partir del cual se deposita pigmento; no cambia la simulación' },
+    },
+    patterns: {
+      nautilus: 'Nautilus — rayas en llama',
+      cepaea: 'Cepaea nemoralis — bandas espirales',
+      oliva: 'Oliva porphyria — triángulos',
     },
     presets: {
       'Gasterópodos': 'Gasterópodos',
@@ -294,7 +496,7 @@ export const STRINGS = {
       ammonite: 'Ammonite evoluto (Dactylioceras)',
       almeja: 'Almeja (Venus)',
     },
-    'info.body': `
+    'info.raup': `
       <blockquote class="quote">
         <p>“The basic form of many coiled gastropod shells can be defined by four parameters. A digital computer with automatic plotting equipment can be used to make graphical reconstructions of a shell from any given values of the four parameters.”</p>
         <cite>— David M. Raup, <i>Science</i> (1962)</cite>
@@ -325,6 +527,57 @@ export const STRINGS = {
       ${MIRROR_TEX}
       <p>El modelo no incluye la charnela, el ligamento ni la ornamentación, y no representa conchas inequivalvas (ostras, vieiras) ni braquiópodos, cuyas dos valvas son distintas.</p>
 
+      <h3>Referencias</h3>
+      ${REFS}`,
+    'info.meinhardt': `
+      <h3>Pintar con química</h3>
+      <p>Un molusco solo añade pigmento donde la concha crece: en el borde de la apertura. Lo que ocurre ahí, célula a célula, queda congelado en la concha a medida que crece. Un patrón de concha es, por tanto, un <strong>registro en el tiempo de un proceso unidimensional</strong>: la dirección a lo largo del borde es el espacio \\(x\\) y la dirección de crecimiento es el tiempo. Esta fue la idea clave de Hans Meinhardt, y por eso el panel de la pestaña <em>Pigmento</em> muestra un diagrama espacio-tiempo.</p>
+
+      <h3>Activación local, inhibición de largo alcance</h3>
+      <p>Siguiendo a Turing (1952), Gierer y Meinhardt (1972) mostraron que los patrones surgen espontáneamente de dos sustancias que interactúan: un <strong>activador</strong> \\(a\\) que estimula su propia producción (autocatálisis) y un antagonista que difunde más rápido y lo mantiene a raya. Un pequeño exceso aleatorio de activador crece localmente, mientras que el antagonista, que se extiende deprisa, impide la activación en los alrededores. El resultado es un patrón regular que nadie ha «dibujado».</p>
+
+      <h3>Modelo activador-inhibidor</h3>
+      ${AI_TEX}
+      <ul>
+        <li>\\(s\\) es la <em>densidad de fuente</em>: la capacidad de cada célula para llevar a cabo la reacción. Varía ligeramente de una célula a otra (el parámetro <em>ruido</em>), y eso es lo que pone en marcha los patrones.</li>
+        <li>\\(r_a, r_h\\) son tasas de decaimiento y \\(D_a, D_h\\), de difusión; \\(b_a, b_h\\) son pequeñas producciones basales; \\(\\kappa\\) satura la autocatálisis y ensancha los picos.</li>
+        <li>Si el inhibidor es rápido (\\(r_h > r_a\\)) y llega lejos (\\(D_h \\gg D_a\\)), los picos son <strong>estables en el tiempo</strong> y dibujan bandas en la dirección de crecimiento.</li>
+        <li>Si el inhibidor vive más que el activador (\\(r_h < r_a\\)), cada brote de activación lo apaga su propio inhibidor y el sistema <strong>oscila</strong>, dibujando rayas paralelas al borde.</li>
+      </ul>
+
+      <h3>Modelo activador-sustrato</h3>
+      ${AS_TEX}
+      <p>Aquí la autocatálisis consume un sustrato \\(b\\) que se produce a ritmo \\(b_b\\). Donde la activación es alta, el sustrato se <strong>agota</strong>, y la célula necesita tiempo para recuperarse antes de poder activarse otra vez: queda <strong>refractaria</strong>. La activación pasa entonces a las células vecinas como una <strong>onda viajera</strong>, que dibuja una línea oblicua en la concha. Cuando dos ondas se encuentran se <strong>aniquilan</strong>, porque cada una choca con la estela refractaria de la otra, y las líneas forman una V.</p>
+
+      <h3>Control global: los triángulos de <i>Oliva porphyria</i></h3>
+      <p>Meinhardt y Klingler (1987) explicaron el patrón de tiendas de <i>Oliva</i> con una tercera sustancia compartida por todo el borde, como una hormona. Mide la actividad total: cuando las ondas se aniquilan y la actividad cae, la señal baja y facilita el disparo de ondas nuevas, que se dividen en nuevas líneas y cierran los triángulos. Esta app usa una versión simplificada de ese mecanismo:</p>
+      ${GLOBAL_TEX}
+
+      <h3>Qué patrón sale de cada dinámica</h3>
+      <ul>
+        <li><strong>Bandas a lo largo de la espiral</strong> (<i>Cepaea nemoralis</i>): picos estables del activador.</li>
+        <li><strong>Rayas paralelas al borde</strong> (las llamas de <i>Nautilus</i>): oscilación; la irregularidad viene del acoplamiento débil entre células.</li>
+        <li><strong>Líneas oblicuas, zigzags y triángulos</strong> (<i>Oliva</i>, muchos <i>Conus</i>): ondas viajeras, sus choques y nuevos disparos.</li>
+      </ul>
+
+      <h3>El crecimiento del borde</h3>
+      <p>Una espiral logarítmica que gira a ritmo constante corresponde a un crecimiento con tasa relativa constante, así que cada vuelta recibe el mismo tiempo de simulación. Pero el borde se alarga a medida que la concha crece. Con <strong>inserción de células</strong>, se añaden células nuevas en posiciones al azar en proporción al tamaño de la concha: los elementos del patrón mantienen su tamaño absoluto y aparecen rayas nuevas intercaladas, como en muchas conchas reales. Sin ella, el número de células es fijo y el patrón simplemente escala con la concha, lo que se parece más a conchas como <i>Cepaea</i>, cuyas bandas existen desde el ápice y solo se ensanchan.</p>
+
+      <h3>Del registro a la concha</h3>
+      <p>El registro espacio-tiempo se envuelve sobre la superficie 3D: la posición a lo largo del borde pasa a ser el ángulo \\(\\varphi\\) alrededor de la apertura, y el tiempo, el ángulo de enrollamiento \\(\\theta\\). Fowler, Meinhardt y Prusinkiewicz (1992) combinaron los dos modelos exactamente así, uniendo la geometría de Raup con la pigmentación de Meinhardt.</p>
+
+      <h3>Controles simples y avanzados</h3>
+      <p>Los controles simples no son multiplicadores ocultos: cada uno es una magnitud real del modelo. El <em>tamaño del patrón</em> fija el número de células a lo largo del borde (256 con ×1): como la difusión se mide en células, con menos células cada elemento es mayor en relación con la concha. El <em>tiempo de crecimiento</em> es \\(T\\), la <em>irregularidad</em> es la variación \\(\\sigma\\) de la densidad de fuente entre células, y la <em>cantidad de pigmento</em> desplaza el umbral de pigmentación. La vista <em>Avanzado</em> muestra estas mismas magnitudes junto con las constantes de las ecuaciones, con sliders logarítmicos porque abarcan varios órdenes de magnitud, así que desde ahí se controla todo. Al cambiar de modelo se cargan constantes que funcionan con él. Si una combinación de valores no forma patrón (el activador se extingue o el borde queda uniforme), la app lo indica en lugar de reescalar diferencias minúsculas hasta fabricar un patrón falso. La vista avanzada muestra además el <em>perfil del borde</em>: el activador y el inhibidor (o el sustrato) a lo largo del borde en el instante que elijas sobre el registro espacio-tiempo, junto con el umbral de pigmentación; es la forma más clara de ver en acción la activación local y la inhibición lateral.</p>
+
+      <h3>Solo se pigmenta el exterior</h3>
+      <p>El pigmento se deposita en la capa externa de la concha, así que el interior de la apertura se dibuja sin pigmento, con un ligero brillo nacarado.</p>
+
+      <h3>Simplificaciones</h3>
+      <p>Las ecuaciones se integran con un esquema de Euler explícito, con un paso de tiempo lo bastante pequeño para ser estable, sobre un borde de 256 células con el tamaño de patrón por defecto. El pigmento se deposita donde el activador, reescalado entre sus percentiles 2 y 99,5 (sin contar el transitorio inicial del ápice), supera un umbral, como en las simulaciones de Meinhardt; así los bordes son nítidos. Los presets son reproducciones aproximadas de los tipos de patrón, no ajustes a ejemplares reales.</p>
+
+      <h3>Referencias</h3>
+      ${MEIN_REFS}`,
+    'info.app': `
       <h3>Cómo funciona la app</h3>
       <ul>
         <li>La superficie se evalúa en una rejilla de puntos \\(\\theta \\times \\varphi\\) y cada celda se divide en dos triángulos. Se regenera con cada cambio de los sliders.</li>
@@ -332,6 +585,7 @@ export const STRINGS = {
         <li>La concha se centra y escala a un tamaño fijo, así que las coordenadas son relativas: importa la forma, no el tamaño absoluto.</li>
         <li>En el modo líneas, las líneas ocultas se eliminan dibujando la superficie solo en el búfer de profundidad.</li>
         <li>El indicador de ejes muestra el sistema \\(x, y, z\\) de la ecuación (\\(z\\) = eje de enrollamiento). Los botones de vista usan las orientaciones estándar en malacología: apertural, dorsal (abapertural), apical, umbilical y perfil.</li>
+        <li>La pigmentación se simula en un hilo aparte (un Web Worker) y se aplica a la malla como textura: la posición a lo largo de la apertura es la coordenada horizontal de la textura y \\(\\theta\\), la vertical.</li>
         <li>Hecha con Three.js (WebGL) y MathJax. La concha actual se guarda en la URL, así que puedes compartir un enlace a ella.</li>
       </ul>
 
@@ -339,14 +593,11 @@ export const STRINGS = {
       <p>Para cualquier duda o comentario, contacta con <strong>Alberto González Casarrubios</strong> (Universidad Complutense de Madrid): <a href="mailto:albert23@ucm.es">albert23@ucm.es</a>.</p>
 
       <h3>Licencia</h3>
-      <p>Esta obra está bajo una licencia <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">Creative Commons Atribución-NoComercial 4.0 Internacional (CC BY-NC 4.0)</a>. Puedes compartirla y adaptarla siempre que reconozcas la autoría, pero no con fines comerciales.</p>
-
-      <h3>Referencias</h3>
-      ${REFS}`,
+      <p>Esta obra está bajo una licencia <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">Creative Commons Atribución-NoComercial 4.0 Internacional (CC BY-NC 4.0)</a>. Puedes compartirla y adaptarla siempre que reconozcas la autoría, pero no con fines comerciales.</p>`,
   },
 };
 
-export { GENERAL_TEX, DEFS_TEX, MIRROR_TEX };
+export { GENERAL_TEX, DEFS_TEX, MIRROR_TEX, AI_TEX, AS_TEX, GLOBAL_TEX };
 
 let current = 'en';
 
@@ -367,6 +618,10 @@ export function t(key, ...args) {
 
 export function tParam(key) {
   return STRINGS[current].params[key] || {};
+}
+
+export function tPattern(key) {
+  return STRINGS[current].patterns[key] || key;
 }
 
 export function tPreset(key) {

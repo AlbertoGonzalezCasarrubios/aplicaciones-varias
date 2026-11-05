@@ -1,4 +1,4 @@
-# Theoretical Shell Morphology · Morfología teórica de conchas
+# Theoretical Shells: Form and Colour · Conchas teóricas: forma y color
 
 **▶ Live / En línea: https://albertogonzalezcasarrubios.github.io/aplicaciones-varias/shells-morphology/**
 
@@ -8,9 +8,9 @@
 
 > *«La forma básica de muchas conchas enrolladas de gasterópodos puede definirse mediante cuatro parámetros. Un ordenador digital con un trazador automático puede usarse para reconstruir gráficamente una concha a partir de cualquier valor de esos cuatro parámetros.»*
 
-En 1962 los ordenadores ocupaban habitaciones enteras y los dibujos salían, línea a línea, de trazadores con plumilla. Aun así, David M. Raup vio en ellos una forma nueva de hacer paleontología: en lugar de limitarse a describir las conchas que existen, generar todas las que *podrían* existir y preguntarse por qué la naturaleza solo ha producido algunas. Esta app es una versión interactiva de aquella idea: mueve sus cuatro parámetros y la concha se reconstruye al instante.
+En 1962 los ordenadores ocupaban habitaciones enteras y los dibujos salían, línea a línea, de trazadores con plumilla. Aun así, David M. Raup vio en ellos una forma nueva de hacer paleontología: en lugar de limitarse a describir las conchas que existen, generar todas las que *podrían* existir y preguntarse por qué la naturaleza solo ha producido algunas. Esta app es una versión interactiva de aquella idea: mueve sus cuatro parámetros y la concha se reconstruye al instante. Y, si quieres, píntala con los patrones de pigmentación de **Hans Meinhardt**, que explican cómo surgen las rayas, bandas y triángulos de las conchas reales.
 
-*Interactive 3D explorer of the **theoretical morphology of coiled shells**, based on David M. Raup's shell-coiling model (1962, 1966). The interface opens in English and can be switched entirely to Spanish with the EN / ES button.*
+*Interactive 3D explorer of the **theoretical morphology of coiled shells**: the shape comes from David M. Raup's shell-coiling model (1962, 1966) and, optionally, the colour pattern from Hans Meinhardt's reaction–diffusion models. The interface opens in English and can be switched entirely to Spanish with the EN / ES button.*
 
 ## La idea: crecer sin cambiar de forma
 
@@ -58,6 +58,31 @@ Las mismas ecuaciones generan las valvas de almejas, berberechos o mejillones (R
 
 El modelo es una simplificación: no incluye la charnela ni la ornamentación, y no sirve para conchas con dos valvas distintas, como ostras, vieiras o braquiópodos.
 
+## El color: los patrones de Meinhardt
+
+Un molusco solo añade pigmento donde la concha crece, en el borde de la apertura, y lo que pasa ahí queda grabado a medida que crece. Por eso, como mostró **Hans Meinhardt**, el dibujo de una concha es el **registro en el tiempo de un proceso que ocurre en una línea**: a lo largo del borde está el espacio, y en la dirección de crecimiento, el tiempo.
+
+Ese proceso es una **reacción-difusión**, la idea que Alan Turing propuso en 1952 y que Gierer y Meinhardt desarrollaron en 1972: una sustancia **activadora** que se estimula a sí misma y un **antagonista** que difunde más deprisa y la frena. De la competición entre ambos surgen patrones regulares sin que nadie los dibuje. La app ofrece los dos modelos de Meinhardt:
+
+- **Activador-inhibidor.** Si el inhibidor actúa rápido y llega lejos, los picos de activador son estables y dibujan **bandas a lo largo de la espiral** (como en *Cepaea nemoralis*). Si el inhibidor dura más que el activador, el sistema **oscila** y dibuja **rayas paralelas al borde** (como las llamas del *Nautilus*).
+- **Activador-sustrato.** La activación consume un sustrato que tarda en recuperarse, así que cada célula queda un tiempo **refractaria**. La activación avanza entonces como **ondas** que dibujan líneas oblicuas; cuando dos ondas chocan se aniquilan y forman una V. Con un **control global**, una señal común a todo el borde que dispara ondas nuevas cuando la actividad cae, aparecen los **triángulos** de *Oliva porphyria* (Meinhardt y Klingler, 1987).
+
+El pigmento se deposita en la capa externa de la concha, así que la app solo pinta el exterior: el interior de la apertura se ve claro, con un ligero brillo nacarado. Como en las simulaciones de Meinhardt, se deposita pigmento donde el activador supera un umbral, lo que da bordes nítidos; la *cantidad de pigmento* sube o baja ese umbral.
+
+Además, el borde se alarga a medida que la concha crece. Con la **inserción de células**, se añaden células nuevas al borde y los elementos del patrón mantienen su tamaño, intercalándose rayas nuevas; sin ella, el patrón crece a la vez que la concha.
+
+### Cómo cambiar de un tipo de patrón a otro
+
+Cada tipo de patrón vive en su propia región del espacio de parámetros, y entre una región y otra el cambio es brusco: son **bifurcaciones** del modelo. No falta ningún parámetro, pero hay que saber qué tocar. El panel avanzado incluye estas recetas:
+
+- **Bandas a lo largo de la espiral**: activador-inhibidor con un inhibidor de largo alcance (D<sub>h</sub> ≫ D<sub>a</sub>) y más rápido que el activador (r<sub>h</sub> > r<sub>a</sub>).
+- **Rayas paralelas al borde**: activador-inhibidor con D<sub>h</sub> ≈ 0 y un inhibidor de vida más larga (r<sub>h</sub> < r<sub>a</sub>).
+- **Líneas oblicuas y triángulos**: activador-sustrato con un sustrato que se recupera despacio; control global para los triángulos.
+
+Al cambiar de modelo se cargan constantes que funcionan con él: las de un modelo no sirven para el otro (por ejemplo, sin producción de sustrato no hay patrón). Si una combinación de valores no forma patrón, la app lo indica en lugar de mostrar una concha en blanco. Un preset fija también la semilla, la inserción de células, el tiempo, la irregularidad, el tamaño, la cantidad de pigmento y los colores; con exactamente los mismos valores se obtiene exactamente el mismo patrón.
+
+Unir la geometría de Raup con la pigmentación de Meinhardt no es una ocurrencia de esta app: es lo que hicieron Fowler, Meinhardt y Prusinkiewicz en 1992. El registro espacio-tiempo se envuelve sobre la concha: el borde da la vuelta a la apertura y el tiempo avanza con el enrollamiento.
+
 ## Cómo usar la app
 
 1. **Elige un preset** (caracol, Turritella, nautilo, ammonite, almeja…) para partir de una forma real.
@@ -67,8 +92,9 @@ El modelo es una simplificación: no incluye la charnela ni la ornamentación, y
 5. **Usa las vistas estándar** de la malacología: 3/4, apertural (de frente a la apertura), dorsal, apical (desde el ápice), umbilical (desde la base) y perfil. Con el ratón puedes rotar (arrastrar), hacer zoom (rueda) y desplazar (clic derecho).
 6. **Pulsa *Animate growth*** para ver crecer la concha desde el ápice hasta la apertura.
 7. **Abre *Equation*** para ver la fórmula general y la misma fórmula con los valores actuales, y ***About*** para una explicación del modelo.
-8. **Para ver solo la concha**, usa *Fullscreen* y *Hide info*.
-9. **Guarda o comparte** tu concha: exporta una imagen PNG o un modelo STL para impresión 3D, o copia la dirección de la página, que guarda la forma actual.
+8. **Píntala** en la pestaña **Pigment · Meinhardt**: al entrar, la concha se colorea con el patrón elegido. La galería muestra cada patrón (Nautilus, Cepaea, Oliva) con su miniatura, y la opción **Solid colour** vuelve a la concha lisa. En la vista **Simple**, los controles cambian el patrón de forma gradual: **tamaño del patrón**, **tiempo de crecimiento**, **irregularidad**, **cantidad de pigmento** y la **semilla** (otra variación del mismo patrón). La vista **Advanced** muestra además el modelo y todas sus constantes, así que desde ahí se controla todo, y el **perfil del borde**: el activador y el inhibidor (o el sustrato) a lo largo del borde en el instante que elijas pinchando en el registro espacio-tiempo, con el umbral de pigmentación. Las ecuaciones de Meinhardt, con los valores actuales, están en *Equation*.
+9. **Para ver solo la concha**, usa *Fullscreen* y *Hide info*.
+10. **Guarda o comparte** tu concha: exporta una imagen PNG o un modelo STL para impresión 3D, o copia la dirección de la página, que guarda la forma actual.
 
 En el panel **Appearance** puedes cambiar colores, grosor y densidad de las líneas, o volver a las paletas **Light** y **Dark** si pierdes los colores.
 
@@ -93,6 +119,16 @@ Los valores son aproximaciones dentro del morfoespacio de Raup, no medidas de ej
 | | Ammonite evoluto (*Dactylioceras*) | 1.9 | 0.45 | 0 | 0.9 | |
 | Bivalvos | Almeja (*Venus*) | 1000 | 0 | 0.35 | 1.1 | ✓ |
 
+### Patrones de pigmentación
+
+Aproximaciones a los tipos de patrón de cada especie, no ajustes a ejemplares reales.
+
+| Patrón | Modelo | Mecanismo | Inserción de células |
+|---|---|---|---|
+| *Nautilus*: rayas en llama | Activador-inhibidor | Oscilación (inhibidor de vida larga) | Sí |
+| *Cepaea nemoralis*: bandas espirales | Activador-inhibidor | Picos estables (inhibición de largo alcance) | No |
+| *Oliva porphyria*: triángulos | Activador-sustrato | Ondas viajeras + control global | No |
+
 ## Para desarrolladores
 
 Los detalles técnicos (estructura del código, cómo se construye la malla, convenciones de ejes, renderizado y publicación) están en [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -111,3 +147,8 @@ Para cualquier duda o comentario: **Alberto González Casarrubios** (Universidad
 - Raup, D. M. (1962). Computer as aid in describing form in gastropod shells. *Science*, 138, 150–152.
 - Raup, D. M., & Michelson, A. (1965). Theoretical morphology of the coiled shell. *Science*, 147, 1294–1295.
 - Raup, D. M. (1966). Geometric analysis of shell coiling: general problems. *Journal of Paleontology*, 40, 1178–1190.
+- Turing, A. M. (1952). The chemical basis of morphogenesis. *Philosophical Transactions of the Royal Society B*, 237, 37–72.
+- Gierer, A., & Meinhardt, H. (1972). A theory of biological pattern formation. *Kybernetik*, 12, 30–39.
+- Meinhardt, H., & Klingler, M. (1987). A model for pattern formation on the shells of molluscs. *Journal of Theoretical Biology*, 126, 63–89.
+- Fowler, D. R., Meinhardt, H., & Prusinkiewicz, P. (1992). Modeling seashells. *Computer Graphics (SIGGRAPH '92)*, 26(2), 379–387.
+- Meinhardt, H. (2009). *The Algorithmic Beauty of Sea Shells* (4.ª ed.). Springer.
